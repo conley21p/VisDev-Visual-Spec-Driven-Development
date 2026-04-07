@@ -1,6 +1,13 @@
 # VisDev - Visual Spec Driven Development
 
-## Product Vision & Rationale
+## Product Description
+
+VisDev is an AI-powered VS Code extension that enables true **Visual Spec-Driven Development** (SDD). 
+
+VisDev provides a dynamic, interactive Blueprint graph directly inside your editor. Instead of getting bogged down in dense Markdown specification files, you visually define features, API endpoints, and data models. An autonomous AI agent then acts on this visual topology to write your implementation code. To ensure architectural integrity, VisDev actively monitors your file system to detect manual code overrides, immediately alerting you and offering AI-assisted pathways to reconcile code drift with your visual spec map.
+
+## Product Founding Description
+
 **"A GUI is worth a thousand words."**
 
 The software industry is currently undergoing a massive paradigm shift in AI-assisted coding. Currently, we see two dominant approaches:
