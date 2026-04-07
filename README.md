@@ -1,4 +1,5 @@
 # VisDev - Visual Spec Driven Development
+*An AI-Powered VS Code Extension*
 
 ## Product Description
 
