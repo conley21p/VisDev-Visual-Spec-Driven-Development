@@ -19,3 +19,21 @@ The industry is now adopting **Spec-Driven Development (SDD)** to solve the stru
 Historically, software development experienced a massive unlock in productivity when we transitioned from pure CLI environments to visually vibrant IDEs. A similar leap is happening now. 
 
 This product aims to provide the **next step function in developer velocity**. By providing technical users with a visually vibrant, interactive GUI that maps out the specification, we keep the human securely in the decision-making and review loop without bottlenecking them with text. Developers can see their architecture, converse with the agent, and maintain high-velocity oversight.
+
+## Technical Product Outline
+
+VisDev is built as a **Rich VS Code Extension**, leveraging native editor APIs for performance while providing a custom React Webview for the interactive blueprint.
+
+### Architecture Stack
+- **Platform**: VS Code Extension API (TypeScript/Node.js) to leverage text editing, language servers, and terminal features natively.
+- **Vibrant GUI**: A Custom Webview Panel within VS Code rendering a **React** application.
+- **Visual Graph**: **React Flow** running inside the Webview to render the interactive Spec Graph and dynamic Spec Builder forms.
+- **Agent Chat**: A native VS Code Sidebar View Container featuring specific AI constraint modes (e.g., "Add Spec", "Update Spec", "All Powerful").
+- **Diff Tracking**: Native VS Code `vscode.workspace.createFileSystemWatcher` to detect manual user code modifications implicitly.
+
+### Configuration & Context Management (`.visdev/`)
+To keep the specification system highly robust, git-friendly, and easy for the LLM to parse, the underlying data architecture relies on a local `.visdev` directory injected into the root of the workspace:
+
+- **`visdev.json`**: The core source of truth defining the project name, global constraints, tech stack tags, and file-to-node mapping bindings.
+- **`.visdev/specs/[node_id].md`**: The actual rich Markdown specification for each visual node. (The visual graph topology coordinates are stored separately so they don't bloat the LLM context limits).
+- **`visdev_sync.json`**: Tracks the drift state. When a file watcher flags an edited file, the system triggers a silent background LLM evaluation against the Markdown spec to determine if the edit constitutes "True Architecture Drift." If true, the specific React Flow node flashes yellow, prompting the developer to use a Sidebar Agent action to either officially assimilate the new code into the spec, or revert the code to stay within architectural compliance.
