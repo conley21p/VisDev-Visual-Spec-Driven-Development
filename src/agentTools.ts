@@ -1,4 +1,66 @@
+export const BlueprintTools = [
+    "create_specification_node",
+    "update_specification_node",
+    "connect_nodes",
+    "remove_connection",
+    "generate_architecture",
+    "register_file_to_node"
+];
+
+export const WorkspaceTools = [
+    "write_code",
+    "list_workspace_files",
+    "list_node_files",
+    "read_file"
+];
+
+export const SystemTools = [
+    "resolve_active_drift",
+    "create_visdev_demo_project",
+    "read_blueprint_architecture"
+];
+
+export const ToolGroupsMetadata = [
+    {
+        id: "blueprint_ops",
+        label: "Architecture & Blueprint Management",
+        description: "Tools for creating, updating, and connecting architectural nodes and edges on the global blueprint graph."
+    },
+    {
+        id: "workspace_io",
+        label: "Implementation & Code Management",
+        description: "Tools for reading and writing implementation code, listing project files, and associating files with spec nodes."
+    },
+    {
+        id: "system_meta",
+        label: "Analysis & System Operations",
+        description: "Tools for high-level system analysis, reading the macro architecture, resolving drift, and bootstrapping demo environments."
+    }
+];
+
 export const AgentToolsSchema = [
+    {
+        type: "function",
+        function: {
+            name: "list_tool_groups",
+            description: "Returns a high-level list of tool categories and their capabilities. Use this to understand what tools are available for a given task type.",
+            parameters: { type: "object", properties: {}, required: [] }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "get_tools_in_group",
+            description: "Returns the detailed functional schemas for all tools within a specific group. Call this after list_tool_groups to 'unlock' the specific tools you need.",
+            parameters: {
+                type: "object",
+                properties: {
+                    group_id: { type: "string", enum: ["blueprint_ops", "workspace_io", "system_meta"], description: "The ID of the group to retrieve tools for." }
+                },
+                required: ["group_id"]
+            }
+        }
+    },
     {
         type: "function",
         function: {
@@ -235,24 +297,21 @@ export const AgentToolsSchema = [
     }
 ];
 
-export function getToolsForMode(mode: string, hasDrift: boolean = false, isInitialized: boolean = true) {
+export function getToolsForMode(mode: string, hasDrift: boolean = false, isInitialized: boolean = true, unlockedTools: string[] = []) {
+    // 1. Core Discovery Tools: Always available unless uninitialized
+    const discoveryTools = AgentToolsSchema.filter(t => t.function.name === 'list_tool_groups' || t.function.name === 'get_tools_in_group');
+    
     if (!isInitialized) {
-        // If uninitialized, restrict tool access rigidly to Demo Project initialization schema!
         return AgentToolsSchema.filter(t => t.function.name === 'create_visdev_demo_project');
     }
 
     if (hasDrift) {
-        // Drift Lock Constraint: Only allow resolving drift.
         return AgentToolsSchema.filter(t => t.function.name === 'resolve_active_drift');
     }
 
-    if (mode === 'add-spec') {
-        // Strip code writing capabilities
-        return AgentToolsSchema.filter(t => t.function.name === 'create_specification_node' || t.function.name === 'read_blueprint_architecture');
-    }
-    if (mode === 'update-spec') {
-        return AgentToolsSchema.filter(t => t.function.name === 'update_specification_node' || t.function.name === 'read_blueprint_architecture');
-    }
-    // all-powerful returns all tools (except drift resolution and demo creation)
-    return AgentToolsSchema.filter(t => t.function.name !== 'resolve_active_drift' && t.function.name !== 'create_visdev_demo_project');
+    // 2. Combine discovery tools with any tools specifically 'unlocked' in this turn
+    const activeTools = AgentToolsSchema.filter(t => unlockedTools.includes(t.function.name));
+    
+    // Return discovery tools + unlocked functional tools
+    return [...discoveryTools, ...activeTools];
 }

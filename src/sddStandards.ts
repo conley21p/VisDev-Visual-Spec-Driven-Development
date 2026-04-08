@@ -89,4 +89,11 @@ ${SDD_PILLAR_DEFINITIONS.CONSTRAINTS}
 ${SDD_PILLAR_DEFINITIONS.INTERACTION_PATTERNS}
 
 ${SDD_PILLAR_DEFINITIONS.METADATA}
+
+---
+
+FORMATTING STANDARD:
+1. YOU MUST respond using GitHub Flavored Markdown.
+2. Use technical tables for all specification summaries and comparisons.
+3. Wrap all code, schemas, and interface definitions in fenced code blocks with appropriate language tags (e.g., \`typescript\`, \`json\`, \`markdown\`).
 `;

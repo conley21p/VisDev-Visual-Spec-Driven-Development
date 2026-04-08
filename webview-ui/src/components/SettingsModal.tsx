@@ -12,13 +12,15 @@ export default function SettingsModal({ currentConfig, onSave, onDemo }: Setting
     const [frontend, setFrontend] = useState(currentConfig?.techStack?.frontend || "React/TypeScript");
     const [backend, setBackend] = useState(currentConfig?.techStack?.backend || "Serverless AWS API Gateway/Lambda");
     const [database, setDatabase] = useState(currentConfig?.techStack?.database || "DynamoDB (NoSQL)");
+    const [preferredModel, setPreferredModel] = useState(currentConfig?.preferredModel || "moonshotai/kimi-k2.5");
 
     const handleSave = () => {
         onSave({
             ...currentConfig,
             name: name || "Untitled VisDev Project",
             description,
-            techStack: { frontend, backend, database }
+            techStack: { frontend, backend, database },
+            preferredModel
         });
     };
 
@@ -53,11 +55,24 @@ export default function SettingsModal({ currentConfig, onSave, onDemo }: Setting
                 </div>
 
                 <div style={{ marginBottom: '15px' }}>
+                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: 'bold' }}>Reasoning Model (NVIDIA NIM)</label>
+                    <select 
+                        value={preferredModel} 
+                        onChange={(e: any) => setPreferredModel(e.target.value)}
+                        style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: 'var(--vscode-dropdown-background)', color: 'var(--vscode-dropdown-foreground)', border: '1px solid var(--vscode-dropdown-border)' }}
+                    >
+                        <option value="moonshotai/kimi-k2.5">NVIDIA / Moonshot Kimi K2.5</option>
+                        <option value="google/gemma-4-31b-it">Google Gemma 4 31B IT</option>
+                        <option value="nvidia/nemotron-3-super-120b-a12b">NVIDIA Nemotron-3 Super 120B</option>
+                    </select>
+                </div>
+
+                <div style={{ marginBottom: '15px' }}>
                     <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: 'bold' }}>Description / Purpose</label>
                     <textarea 
                         value={description} 
                         onChange={(e: any) => setDescription(e.target.value)} 
-                        rows={3}
+                        rows={2}
                         style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: 'var(--vscode-input-background)', color: 'var(--vscode-input-foreground)', border: '1px solid var(--vscode-input-border)', borderRadius: '2px', resize: 'vertical' }} 
                     />
                 </div>
@@ -112,9 +127,9 @@ export default function SettingsModal({ currentConfig, onSave, onDemo }: Setting
                     style={{
                         width: '100%', 
                         padding: '10px', 
-                        backgroundColor: 'var(--vscode-button-background)', 
-                        color: 'var(--vscode-button-foreground)', 
-                        border: 'none', 
+                        backgroundColor: 'transparent', 
+                        color: 'var(--vscode-button-background)', 
+                        border: '1px solid var(--vscode-button-background)', 
                         borderRadius: '2px',
                         cursor: 'pointer',
                         fontWeight: 'bold',
@@ -128,9 +143,9 @@ export default function SettingsModal({ currentConfig, onSave, onDemo }: Setting
                     style={{
                         width: '100%', 
                         padding: '10px', 
-                        backgroundColor: 'transparent', 
-                        color: 'var(--vscode-button-background)', 
-                        border: '1px solid var(--vscode-button-background)', 
+                        backgroundColor: 'var(--vscode-button-background)', 
+                        color: 'var(--vscode-button-foreground)', 
+                        border: 'none', 
                         borderRadius: '2px',
                         cursor: 'pointer',
                         fontWeight: 'bold'

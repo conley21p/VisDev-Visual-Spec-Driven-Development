@@ -48,6 +48,45 @@ const getLayoutedElements = (nodes: any[], edges: any[], direction = 'TB') => {
   return { nodes: layoutedNodes, edges };
 };
 
+const IconButton: React.FC<{ icon: string, label: string, onClick: () => void, style?: React.CSSProperties }> = ({ icon, label, onClick, style }) => {
+    const [hovered, setHovered] = useState(false);
+    return (
+        <button
+            onClick={onClick}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: hovered ? '8px' : '0',
+                padding: '10px',
+                minWidth: '38px',
+                maxWidth: hovered ? '180px' : '38px',
+                height: '38px',
+                borderRadius: '19px',
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '11px',
+                boxShadow: '0 4px 8px rgba(0,0,0,0.4)',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                overflow: 'hidden',
+                whiteSpace: 'nowrap',
+                ...style
+            }}
+        >
+            <span style={{ fontSize: '14px', flexShrink: 0, width: '18px', textAlign: 'center' }}>{icon}</span>
+            <span style={{ 
+                opacity: hovered ? 1 : 0, 
+                transition: 'opacity 0.2s',
+                pointerEvents: 'none'
+            }}>
+                {label}
+            </span>
+        </button>
+    );
+};
+
 function App() {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node[]>(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge[]>(initialEdges);
@@ -187,80 +226,39 @@ function App() {
         fitView
       >
         <Panel position="top-left" style={{ zIndex: 100 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'stretch', width: '160px' }}>
-                <button
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-start' }}>
+                <IconButton 
+                    icon="+" 
+                    label="Add Spec Node" 
                     onClick={() => { if (vscodeApi) vscodeApi.postMessage({ command: 'addManualNode' }); }}
-                    style={{
-                        padding: '10px 16px',
-                        backgroundColor: 'var(--vscode-button-background)',
-                        color: 'var(--vscode-button-foreground)',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontWeight: 'bold',
-                        fontSize: '11px',
-                        boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
-                    }}
-                >
-                    + Add Spec Node
-                </button>
+                    style={{ backgroundColor: 'var(--vscode-button-background)', color: 'var(--vscode-button-foreground)' }}
+                />
 
-                <button
+                <IconButton 
+                    icon="📐" 
+                    label="Auto Layout" 
                     onClick={() => onLayout('TB')}
-                    style={{
-                        padding: '10px 16px',
-                        backgroundColor: '#34495e',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontWeight: 'bold',
-                        fontSize: '11px',
-                        boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
-                    }}
-                >
-                    🪄 Auto Layout
-                </button>
+                    style={{ backgroundColor: '#34495e', color: '#fff' }}
+                />
 
                 {pendingNodeCount > 0 && (
-                    <button
+                    <IconButton 
+                        icon="🚀" 
+                        label={`Execute All (${pendingNodeCount})`} 
                         onClick={handleExecuteAll}
-                        style={{
-                            padding: '10px 16px',
-                            background: 'linear-gradient(135deg, #6a11cb 0%, #2575fc 100%)',
-                            color: '#fff',
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontWeight: 'bold',
-                            fontSize: '11px',
-                            boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
-                        }}
-                    >
-                        🚀 Execute All ({pendingNodeCount})
-                    </button>
+                        style={{ background: 'linear-gradient(135deg, #6a11cb 0%, #2575fc 100%)', color: '#fff' }}
+                    />
                 )}
 
                 {hasDrift && (
-                    <button
+                    <IconButton 
+                        icon="⚠" 
+                        label="Resolve Drift" 
                         onClick={() => {
                             if (vscodeApi) vscodeApi.postMessage({ command: 'processPrompt', mode: 'all-powerful', text: 'There is active drift in the project. Please use the resolve_active_drift tool to reconcile the architectural drift.' });
                         }}
-                        style={{
-                            padding: '10px 16px',
-                            backgroundColor: '#c0392b',
-                            color: '#fff',
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontWeight: 'bold',
-                            fontSize: '11px',
-                            boxShadow: '0 4px 6px rgba(0,0,0,0.4)',
-                            animation: 'pulse 1.5s infinite',
-                        }}
-                    >
-                        ⚠ Resolve Drift
-                    </button>
+                        style={{ backgroundColor: '#c0392b', color: '#fff', animation: 'pulse 1.5s infinite' }}
+                    />
                 )}
             </div>
         </Panel>

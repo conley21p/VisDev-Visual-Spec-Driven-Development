@@ -30,6 +30,7 @@ export interface VisdevConfig {
         backend: string;
         database: string;
     },
+    preferredModel?: string;
     fileBindings: Record<string, string>;
     memory: any[];
 }
@@ -95,6 +96,7 @@ export class VisdevManager {
                 name: "New VisDev Project",
                 description: "",
                 techStack: { frontend: "", backend: "", database: "" },
+                preferredModel: "moonshotai/kimi-k2.5",
                 fileBindings: {},
                 memory: []
             };

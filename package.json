@@ -18,6 +18,22 @@
       {
         "command": "sdd-ide.openBlueprint",
         "title": "VisDev: Open Blueprint"
+      },
+      {
+        "command": "sdd-ide.setApiKey",
+        "title": "VisDev: Set API Key"
+      },
+      {
+        "command": "sdd-ide.showApiKey",
+        "title": "VisDev: Show API Key"
+      },
+      {
+        "command": "sdd-ide.renameModel",
+        "title": "VisDev: Rename LLM Model"
+      },
+      {
+        "command": "sdd-ide.setDefaultModel",
+        "title": "VisDev: Set Default LLM Model"
       }
     ],
     "viewsContainers": {
