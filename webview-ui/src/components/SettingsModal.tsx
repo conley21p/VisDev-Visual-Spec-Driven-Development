@@ -3,9 +3,10 @@ import React, { useState } from 'react';
 interface SettingsModalProps {
     currentConfig: any;
     onSave: (config: any) => void;
+    onDemo: () => void;
 }
 
-export default function SettingsModal({ currentConfig, onSave }: SettingsModalProps) {
+export default function SettingsModal({ currentConfig, onSave, onDemo }: SettingsModalProps) {
     const [name, setName] = useState(currentConfig?.name === "New VisDev Project" ? "" : currentConfig?.name || "");
     const [description, setDescription] = useState(currentConfig?.description || "");
     const [frontend, setFrontend] = useState(currentConfig?.techStack?.frontend || "React/TypeScript");
@@ -116,10 +117,26 @@ export default function SettingsModal({ currentConfig, onSave }: SettingsModalPr
                         border: 'none', 
                         borderRadius: '2px',
                         cursor: 'pointer',
-                        fontWeight: 'bold'
+                        fontWeight: 'bold',
+                        marginBottom: '10px'
                     }}
                 >
                     Save Project Constraints
+                </button>
+                <button 
+                    onClick={onDemo}
+                    style={{
+                        width: '100%', 
+                        padding: '10px', 
+                        backgroundColor: 'transparent', 
+                        color: 'var(--vscode-button-background)', 
+                        border: '1px solid var(--vscode-button-background)', 
+                        borderRadius: '2px',
+                        cursor: 'pointer',
+                        fontWeight: 'bold'
+                    }}
+                >
+                    Generate 3-Node Demo Architecture (Quickstart)
                 </button>
             </div>
         </div>

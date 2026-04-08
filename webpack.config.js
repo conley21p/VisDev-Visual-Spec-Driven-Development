@@ -3,6 +3,7 @@ const path = require('path');
 /** @type {import('webpack').Configuration} */
 module.exports = {
   mode: 'none', // this leaves the code un-minified for debugging
+  target: 'node',
   entry: {
     extension: './src/extension.ts'
   },

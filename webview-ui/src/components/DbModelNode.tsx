@@ -14,8 +14,17 @@ export default function DbModelNode({ data, selected }: NodeProps) {
       fontFamily: 'sans-serif'
     }}>
       <Handle type="target" position={Position.Top} style={{ background: '#2b5a5c' }} />
-      <div style={{ fontSize: '14px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
-        <span>🗄️</span> {data.label}
+      <div style={{ fontSize: '14px', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span>🗄️</span> {data.label}
+        </div>
+        {data.onExecute && (
+            <button 
+                onClick={(e) => { e.stopPropagation(); data.onExecute(data.id); }}
+                style={{ fontSize: '10px', padding: '2px 6px', background: '#2b5a5c', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                Execute
+            </button>
+        )}
       </div>
       <div style={{ fontSize: '11px', color: '#7eb3b5', marginTop: '4px' }}>{data.schema || '{}'}</div>
       <Handle type="source" position={Position.Bottom} style={{ background: '#2b5a5c' }} />
