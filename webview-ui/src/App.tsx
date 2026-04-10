@@ -1,11 +1,21 @@
-import React, { useMemo, useEffect, useState } from 'react';
-import ReactFlow, { Background, Controls, Node, Edge, useNodesState, useEdgesState, Panel, Position } from 'reactflow';
+import React, { useMemo, useEffect, useState, useCallback } from 'react';
+import ReactFlow, { 
+    Background, 
+    Controls, 
+    Node, 
+    Edge, 
+    useNodesState, 
+    useEdgesState, 
+    Panel, 
+    Position, 
+    addEdge, 
+    Connection 
+} from 'reactflow';
 import 'reactflow/dist/style.css';
 import dagre from 'dagre';
 
 import FeatureNode from './components/FeatureNode';
 import SettingsModal from './components/SettingsModal';
-import SpecBuilder from './components/SpecBuilder';
 
 const vscodeApi = (window as any).acquireVsCodeApi ? (window as any).acquireVsCodeApi() : null;
 
@@ -15,8 +25,8 @@ const initialEdges: Edge[] = [];
 const dagreGraph = new dagre.graphlib.Graph();
 dagreGraph.setDefaultEdgeLabel(() => ({}));
 
-const nodeWidth = 200;
-const nodeHeight = 150;
+const nodeWidth = 220;
+const nodeHeight = 300;
 
 const getLayoutedElements = (nodes: any[], edges: any[], direction = 'TB') => {
   const isHorizontal = direction === 'LR';
@@ -92,10 +102,44 @@ function App() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge[]>(initialEdges);
   const [config, setConfig] = useState<any>(null);
   const [showSettings, setShowSettings] = useState<boolean>(false);
-  const [activeSpecNode, setActiveSpecNode] = useState<string | null>(null);
-  const [activeSpecData, setActiveSpecData] = useState<any>(null);
-  const [executingNodes, setExecutingNodes] = useState<Set<string>>(new Set());
-  const [hasDrift, setHasDrift] = useState<boolean>(false);
+
+  // Custom Node Logic for Bi-Directional Authoring
+  const onUpdateField = useCallback((nodeId: string, path: string, value: any) => {
+    if (vscodeApi) {
+        vscodeApi.postMessage({
+            command: 'updateBlueprint',
+            action: { type: 'UPDATE_FIELD', payload: { nodeId, path, value } }
+        });
+    }
+  }, []);
+
+  const onNodeDragStop = useCallback((_: React.MouseEvent, node: Node) => {
+    if (vscodeApi) {
+        vscodeApi.postMessage({
+            command: 'updateBlueprint',
+            action: { type: 'UPDATE_POSITION', payload: { nodeId: node.id, position: node.position } }
+        });
+    }
+  }, []);
+
+  const onConnect = useCallback((params: Connection) => {
+    if (vscodeApi && params.source && params.target && params.sourceHandle && params.targetHandle) {
+        // targetHandle should be the schema path, e.g. "components.schemas.StoreSection.properties.label"
+        vscodeApi.postMessage({
+            command: 'updateBlueprint',
+            action: { 
+                type: 'CREATE_RELATION', 
+                payload: { 
+                    sourceNodeId: params.source,
+                    sourceFieldPath: params.sourceHandle,
+                    targetNodeId: params.target,
+                    targetFieldPath: params.targetHandle
+                } 
+            }
+        });
+    }
+    setEdges((eds) => addEdge(params, eds));
+  }, [setEdges]);
 
   const onLayout = (direction: string) => {
     const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
@@ -108,21 +152,12 @@ function App() {
     setEdges([...layoutedEdges]);
   };
 
-  // Register custom node types
   const nodeTypes = useMemo(() => ({
-    feature: FeatureNode,
-    api: FeatureNode,
-    uiComponent: FeatureNode,
-    dbModel: FeatureNode,
-    event: FeatureNode,
-    worker: FeatureNode,
-    logic: FeatureNode,
-    gateway: FeatureNode,
-    cache: FeatureNode,
-    externalService: FeatureNode,
-    note: FeatureNode,
-    boundary: FeatureNode
-  }), []);
+    feature: (props: any) => <FeatureNode {...props} onUpdateField={onUpdateField} />,
+    core: (props: any) => <FeatureNode {...props} onUpdateField={onUpdateField} />,
+    edge: (props: any) => <FeatureNode {...props} onUpdateField={onUpdateField} />,
+    external: (props: any) => <FeatureNode {...props} onUpdateField={onUpdateField} />
+  }), [onUpdateField]);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -132,47 +167,24 @@ function App() {
         if (message.command === 'setBlueprint') {
             const blueprint = message.data;
             if (blueprint && blueprint.nodes) {
-                const mappedNodes = blueprint.nodes.map((n: Node) => ({
-                    ...n,
-                    data: { 
-                        ...n.data, 
-                        isExecuting: false,
-                        isExecuted: n.data?.executed === true,
-                        onExecute: (id: string) => {
-                            if (executingNodes.has(id)) return;
-                            setExecutingNodes(prev => new Set(prev).add(id));
-                            if (vscodeApi) vscodeApi.postMessage({ command: 'executeNode', nodeId: id });
-                            setTimeout(() => setExecutingNodes(prev => { const s = new Set(prev); s.delete(id); return s; }), 15000);
-                        },
-                        onRename: (id: string, newLabel: string) => {
-                            if (vscodeApi) vscodeApi.postMessage({ command: 'renameNode', nodeId: id, newLabel });
-                        }
-                    }
-                }));
-                setNodes(mappedNodes);
+                setNodes(blueprint.nodes);
             }
-            if (blueprint.edges) setEdges(blueprint.edges);
+            if (blueprint && blueprint.edges) {
+                setEdges(blueprint.edges);
+            }
             
             const loadedConfig = message.config;
             setConfig(loadedConfig);
             if (loadedConfig && loadedConfig.name === "New VisDev Project") {
                 setShowSettings(true);
             }
-            if (typeof message.hasDrift === 'boolean') {
-                setHasDrift(message.hasDrift);
-            }
-        } else if (message.command === 'setSpecData') {
-            setActiveSpecData(message.data);
-            setActiveSpecNode(message.nodeId);
-        } else if (message.command === 'executionComplete') {
-            setExecutingNodes(prev => { const s = new Set(prev); s.delete(message.nodeId); return s; });
         }
     };
     
     window.addEventListener('message', handleMessage);
     if (vscodeApi) vscodeApi.postMessage({ command: 'loadBlueprint' });
     return () => window.removeEventListener('message', handleMessage);
-  }, [executingNodes]);
+  }, [setNodes, setEdges]);
 
   const handleSaveConfig = (newConfig: any) => {
       if (vscodeApi) vscodeApi.postMessage({ command: 'saveVisdevConfig', data: newConfig });
@@ -180,58 +192,51 @@ function App() {
       setShowSettings(false);
   };
 
-  const onNodeClick = (_: React.MouseEvent, node: Node) => {
-    if (vscodeApi) vscodeApi.postMessage({ command: 'getSpec', nodeId: node.id });
-  };
-
-  const handleSaveSpec = (nodeId: string, updatedData: any) => {
-      if (vscodeApi) vscodeApi.postMessage({ command: 'saveSpec', nodeId, data: updatedData });
-      setActiveSpecNode(null);
-  };
-
-  const pendingNodeCount = nodes.filter((n: any) => n.data?.isExecuted === false).length;
-
-  const handleExecuteAll = () => {
-    const unexecuted = nodes.filter((n: any) => n.data?.isExecuted === false);
-    unexecuted.forEach((n: any) => {
-        if (executingNodes.has(n.id)) return;
-        setExecutingNodes(prev => new Set(prev).add(n.id));
-        if (vscodeApi) vscodeApi.postMessage({ command: 'executeNode', nodeId: n.id });
-        setTimeout(() => setExecutingNodes(prev => { const s = new Set(prev); s.delete(n.id); return s; }), 15000);
-    });
-  };
-
   return (
-    <div style={{ width: '100vw', height: '100vh', background: '#1e1e1e', position: 'relative' }}>
+    <div style={{ width: '100vw', height: '100vh', background: '#121212', position: 'relative' }}>
       {showSettings && <SettingsModal currentConfig={config} onSave={handleSaveConfig} onDemo={() => {
           if (vscodeApi) vscodeApi.postMessage({ command: 'createDemoWorkspace' });
           setShowSettings(false);
       }} />}
-      {activeSpecNode && activeSpecData && (
-          <SpecBuilder 
-              key={activeSpecNode}
-              nodeId={activeSpecNode} 
-              initialData={activeSpecData} 
-              onSave={handleSaveSpec} 
-              onClose={() => setActiveSpecNode(null)} 
-          />
+      {/* Dynamic Island style header */}
+      {config && (
+        <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 200 }}>
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            padding: '8px 18px',
+            borderRadius: 24,
+            background: 'linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03))',
+            boxShadow: '0 8px 30px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.02)',
+            backdropFilter: 'blur(8px)',
+            color: '#fff',
+            minWidth: 260,
+            maxWidth: '70vw'
+          }}>
+            <div style={{ fontWeight: 700, fontSize: 14, letterSpacing: '-0.2px' }}>{config.name}</div>
+            {config.description && <div style={{ fontSize: 11, opacity: 0.85, marginTop: 4, textAlign: 'center', maxWidth: '60vw' }}>{config.description}</div>}
+          </div>
+        </div>
       )}
+
       <ReactFlow 
         nodes={nodes} 
         edges={edges}
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
-        onNodeClick={onNodeClick}
+        onNodeDragStop={onNodeDragStop}
+        onConnect={onConnect}
         fitView
       >
         <Panel position="top-left" style={{ zIndex: 100 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'flex-start' }}>
                 <IconButton 
                     icon="+" 
-                    label="Add Spec Node" 
-                    onClick={() => { if (vscodeApi) vscodeApi.postMessage({ command: 'addManualNode' }); }}
-                    style={{ backgroundColor: 'var(--vscode-button-background)', color: 'var(--vscode-button-foreground)' }}
+                    label="Add Domain Spec" 
+                    onClick={() => { /* TODO: Implement */ }}
+                    style={{ backgroundColor: '#2ecc71', color: '#fff' }}
                 />
 
                 <IconButton 
@@ -240,29 +245,9 @@ function App() {
                     onClick={() => onLayout('TB')}
                     style={{ backgroundColor: '#34495e', color: '#fff' }}
                 />
-
-                {pendingNodeCount > 0 && (
-                    <IconButton 
-                        icon="🚀" 
-                        label={`Execute All (${pendingNodeCount})`} 
-                        onClick={handleExecuteAll}
-                        style={{ background: 'linear-gradient(135deg, #6a11cb 0%, #2575fc 100%)', color: '#fff' }}
-                    />
-                )}
-
-                {hasDrift && (
-                    <IconButton 
-                        icon="⚠" 
-                        label="Resolve Drift" 
-                        onClick={() => {
-                            if (vscodeApi) vscodeApi.postMessage({ command: 'processPrompt', mode: 'all-powerful', text: 'There is active drift in the project. Please use the resolve_active_drift tool to reconcile the architectural drift.' });
-                        }}
-                        style={{ backgroundColor: '#c0392b', color: '#fff', animation: 'pulse 1.5s infinite' }}
-                    />
-                )}
             </div>
         </Panel>
-        <Background gap={20} size={1} color="#333" />
+        <Background gap={20} size={1} color="#222" />
         <Controls />
       </ReactFlow>
     </div>

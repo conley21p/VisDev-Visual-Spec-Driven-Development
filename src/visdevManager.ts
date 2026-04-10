@@ -1,11 +1,13 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import { parseDocument, Document, isMap, isScalar, YAMLMap } from 'yaml';
 
 export interface VisdevNode {
     id: string;
     type: string;
     position: { x: number, y: number };
     data: any;
+    filePath: string;
 }
 
 export interface VisdevEdge {
@@ -15,6 +17,7 @@ export interface VisdevEdge {
     label?: string;
     animated?: boolean;
     style?: any;
+    data?: any;
 }
 
 export interface VisdevBlueprint {
@@ -25,306 +28,256 @@ export interface VisdevBlueprint {
 export interface VisdevConfig {
     name: string;
     description: string;
-    techStack: {
-        frontend: string;
-        backend: string;
-        database: string;
-    },
     preferredModel?: string;
-    fileBindings: Record<string, string>;
-    memory: any[];
-}
-
-export interface VisdevSync {
-    driftedFiles: any[];
 }
 
 export class VisdevManager {
-    private basePath: string | undefined;
+    private projectRoot: string | undefined;
 
     constructor() {
         if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
-            this.basePath = path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, '.visdev');
+            this.projectRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
         }
     }
 
     public isInitialized(): boolean {
-        return this.basePath !== undefined;
+        return this.projectRoot !== undefined;
     }
 
-    private get blueprintPath(): string {
-        return path.join(this.basePath!, 'blueprint.json');
-    }
-
-    private get configPath(): string {
-        return path.join(this.basePath!, 'visdev.json');
-    }
-
-    private get syncPath(): string {
-        return path.join(this.basePath!, 'visdev_sync.json');
+    private get visdevDirPath(): string {
+        return path.join(this.projectRoot!, '.visdev');
     }
 
     private get specsPath(): string {
-        return path.join(this.basePath!, 'specs');
+        return path.join(this.projectRoot!, 'specs');
+    }
+
+    private get configPath(): string {
+        return path.join(this.visdevDirPath, 'visdev.json');
+    }
+
+    private get chatHistoryPath(): string {
+        return path.join(this.visdevDirPath, 'chat_history.json');
     }
 
     public async initializeProject(): Promise<void> {
-        if (!this.basePath) {
-            throw new Error("No workspace opened.");
-        }
+        if (!this.projectRoot) throw new Error("No workspace opened.");
 
-        const visdevUri = vscode.Uri.file(this.basePath);
+        const visdevUri = vscode.Uri.file(this.visdevDirPath);
         const specsUri = vscode.Uri.file(this.specsPath);
 
-        // Create directories
         await vscode.workspace.fs.createDirectory(visdevUri);
         await vscode.workspace.fs.createDirectory(specsUri);
+        await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.join(this.specsPath, 'domains')));
+        await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.join(this.specsPath, 'registry')));
+        await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.join(this.specsPath, 'shared')));
 
-        // Initialize blueprint.json
-        try {
-            await vscode.workspace.fs.stat(vscode.Uri.file(this.blueprintPath));
-        } catch {
-            const emptyBlueprint: VisdevBlueprint = { nodes: [], edges: [] };
-            await vscode.workspace.fs.writeFile(vscode.Uri.file(this.blueprintPath), Buffer.from(JSON.stringify(emptyBlueprint, null, 2)));
-        }
-
-        // Initialize visdev.json config
+        // Config initialization
         try {
             await vscode.workspace.fs.stat(vscode.Uri.file(this.configPath));
         } catch {
-            const emptyConfig: VisdevConfig = {
+            const defaultConfig: VisdevConfig = {
                 name: "New VisDev Project",
-                description: "",
-                techStack: { frontend: "", backend: "", database: "" },
-                preferredModel: "moonshotai/kimi-k2.5",
-                fileBindings: {},
-                memory: []
+                description: "Spec-as-Infrastructure Workspace",
+                preferredModel: "google/gemini-2.0-flash-001"
             };
-            await vscode.workspace.fs.writeFile(vscode.Uri.file(this.configPath), Buffer.from(JSON.stringify(emptyConfig, null, 2)));
-        }
-
-        // Initialize visdev_sync.json
-        try {
-            await vscode.workspace.fs.stat(vscode.Uri.file(this.syncPath));
-        } catch {
-            const emptySync: VisdevSync = { driftedFiles: [] };
-            await vscode.workspace.fs.writeFile(vscode.Uri.file(this.syncPath), Buffer.from(JSON.stringify(emptySync, null, 2)));
+            await vscode.workspace.fs.writeFile(vscode.Uri.file(this.configPath), Buffer.from(JSON.stringify(defaultConfig, null, 2)));
         }
     }
 
     public async getBlueprint(): Promise<VisdevBlueprint> {
-        if (!this.basePath) throw new Error("No workspace.");
-        try {
-            const uint8Array = await vscode.workspace.fs.readFile(vscode.Uri.file(this.blueprintPath));
-            const bp = JSON.parse(new TextDecoder().decode(uint8Array)) as VisdevBlueprint;
-            return {
-                nodes: bp.nodes || [],
-                edges: bp.edges || []
-            };
-        } catch {
-            return { nodes: [], edges: [] };
-        }
-    }
-
-    public async addEdge(source: string, target: string, label?: string): Promise<void> {
-        if (!this.basePath) return;
-        const blueprint = await this.getBlueprint();
-        const id = `e-${source}-${target}-${Math.random().toString(36).substr(2, 4)}`;
-        if (!blueprint.edges) blueprint.edges = [];
+        if (!this.projectRoot) throw new Error("No workspace.");
         
-        blueprint.edges.push({
-            id,
-            source,
-            target,
-            label,
-            animated: true,
-            style: { stroke: '#3498db', strokeWidth: 2 }
-        });
-
-        await vscode.workspace.fs.writeFile(vscode.Uri.file(this.blueprintPath), Buffer.from(JSON.stringify(blueprint, null, 2)));
-    }
-
-    public async updateNodeLabel(nodeId: string, newLabel: string): Promise<void> {
-        if (!this.basePath) return;
-        const blueprint = await this.getBlueprint();
-        const node = blueprint.nodes.find(n => n.id === nodeId);
-        if (node) {
-            if (!node.data) node.data = {};
-            node.data.label = newLabel;
-            await vscode.workspace.fs.writeFile(vscode.Uri.file(this.blueprintPath), Buffer.from(JSON.stringify(blueprint, null, 2)));
-        }
-    }
-
-    public async removeEdge(edgeId: string): Promise<void> {
-        if (!this.basePath) return;
-        const blueprint = await this.getBlueprint();
-        if (!blueprint.edges) return;
+        const nodes: VisdevNode[] = [];
+        const edges: VisdevEdge[] = [];
         
-        blueprint.edges = blueprint.edges.filter(e => e.id !== edgeId);
-        await vscode.workspace.fs.writeFile(vscode.Uri.file(this.blueprintPath), Buffer.from(JSON.stringify(blueprint, null, 2)));
-    }
-    
-    public async getConfig(): Promise<VisdevConfig> {
-        if (!this.basePath) throw new Error("No workspace.");
-        const uint8Array = await vscode.workspace.fs.readFile(vscode.Uri.file(this.configPath));
-        return JSON.parse(new TextDecoder().decode(uint8Array)) as VisdevConfig;
-    }
-
-    public async saveConfig(config: VisdevConfig): Promise<void> {
-        if (!this.basePath) throw new Error("No workspace.");
-        const content = Buffer.from(JSON.stringify(config, null, 2));
-        await vscode.workspace.fs.writeFile(vscode.Uri.file(this.configPath), content);
-    }
-
-    public async getSyncState(): Promise<VisdevSync> {
-        if (!this.basePath) throw new Error("No workspace.");
-        const uint8Array = await vscode.workspace.fs.readFile(vscode.Uri.file(this.syncPath));
-        return JSON.parse(new TextDecoder().decode(uint8Array)) as VisdevSync;
-    }
-
-    public async addDriftedFile(filePath: string): Promise<void> {
-        if (!this.basePath) return;
-        const syncState = await this.getSyncState();
-        if (!syncState.driftedFiles.includes(filePath)) {
-            syncState.driftedFiles.push(filePath);
-            await vscode.workspace.fs.writeFile(vscode.Uri.file(this.syncPath), Buffer.from(JSON.stringify(syncState, null, 2)));
-        }
-    }
-
-    public async clearDrift(): Promise<void> {
-        if (!this.basePath) return;
-        const syncState = await this.getSyncState();
-        syncState.driftedFiles = [];
-        await vscode.workspace.fs.writeFile(vscode.Uri.file(this.syncPath), Buffer.from(JSON.stringify(syncState, null, 2)));
-    }
-
-    public async getSpecNode(nodeId: string): Promise<any> {
-        if (!this.basePath) throw new Error("No workspace.");
-        const specUri = vscode.Uri.file(path.join(this.specsPath, `${nodeId}.json`));
-        try {
-            const uint8Array = await vscode.workspace.fs.readFile(specUri);
-            return JSON.parse(new TextDecoder().decode(uint8Array));
-        } catch {
-            return {};
-        }
-    }
-
-    public async createSpecNode(node: VisdevNode, specData: any): Promise<void> {
-        if (!this.basePath) throw new Error("No workspace.");
-        const blueprint = await this.getBlueprint();
+        const files = await this.recursiveListYaml(this.specsPath);
         
-        // Add Node
-        blueprint.nodes.push(node);
-        
-        // Save Blueprint
-        await vscode.workspace.fs.writeFile(vscode.Uri.file(this.blueprintPath), Buffer.from(JSON.stringify(blueprint, null, 2)));
-
-        // Save SDD JSON File
-        const specUri = vscode.Uri.file(path.join(this.specsPath, `${node.id}.json`));
-        await vscode.workspace.fs.writeFile(specUri, Buffer.from(JSON.stringify(specData, null, 2)));
-    }
-
-    public async updateSpecNode(nodeId: string, specDataUpdates: any): Promise<void> {
-        if (!this.basePath) throw new Error("No workspace.");
-        const specUri = vscode.Uri.file(path.join(this.specsPath, `${nodeId}.json`));
-        
-        let existingData: any = {};
-        try {
-            const uint8Array = await vscode.workspace.fs.readFile(specUri);
-            existingData = JSON.parse(new TextDecoder().decode(uint8Array));
-        } catch {
-            console.log("Spec file not found, creating new one.");
-        }
-
-        const mergedData = { ...existingData };
-        if (specDataUpdates.spec_interface) mergedData.spec_interface = specDataUpdates.spec_interface;
-        if (specDataUpdates.spec_constraints) mergedData.spec_constraints = specDataUpdates.spec_constraints;
-        if (specDataUpdates.spec_interactions) mergedData.spec_interactions = specDataUpdates.spec_interactions;
-        if (specDataUpdates.spec_metadata) mergedData.spec_metadata = specDataUpdates.spec_metadata;
-
-        // Saving spec resets executed lock so re-execution is allowed
-        mergedData.executed = false;
-
-        await vscode.workspace.fs.writeFile(specUri, Buffer.from(JSON.stringify(mergedData, null, 2)));
-    }
-
-    public async setNodeExecuted(nodeId: string): Promise<void> {
-        if (!this.basePath) return;
-        const specUri = vscode.Uri.file(path.join(this.specsPath, `${nodeId}.json`));
-        try {
-            const uint8Array = await vscode.workspace.fs.readFile(specUri);
-            const data = JSON.parse(new TextDecoder().decode(uint8Array));
-            data.executed = true;
-            if (!data.associatedFiles) data.associatedFiles = [];
-            await vscode.workspace.fs.writeFile(specUri, Buffer.from(JSON.stringify(data, null, 2)));
-        } catch (e) { console.error("setNodeExecuted failed:", e); }
-    }
-
-    public async addFileToNode(nodeId: string, relativeFilePath: string): Promise<void> {
-        if (!this.basePath) return;
-        const specUri = vscode.Uri.file(path.join(this.specsPath, `${nodeId}.json`));
-        try {
-            const uint8Array = await vscode.workspace.fs.readFile(specUri);
-            const data = JSON.parse(new TextDecoder().decode(uint8Array));
-            if (!data.associatedFiles) data.associatedFiles = [];
-            if (!data.associatedFiles.includes(relativeFilePath)) {
-                data.associatedFiles.push(relativeFilePath);
-            }
-            await vscode.workspace.fs.writeFile(specUri, Buffer.from(JSON.stringify(data, null, 2)));
-        } catch (e) { console.error("addFileToNode failed:", e); }
-    }
-
-    public async getNodeMeta(nodeId: string): Promise<{ executed: boolean; associatedFiles: string[] }> {
-        try {
-            const spec = await this.getSpecNode(nodeId);
-            return {
-                executed: spec.executed === true,
-                associatedFiles: spec.associatedFiles || []
-            };
-        } catch {
-            return { executed: false, associatedFiles: [] };
-        }
-    }
-
-    public async listWorkspaceFiles(maxDepth: number = 4): Promise<string[]> {
-        const rootUri = vscode.workspace.workspaceFolders?.[0]?.uri;
-        if (!rootUri) return [];
-        const results: string[] = [];
-        const EXCLUDED = new Set(['.git', 'node_modules', '.visdev', 'dist', 'out', 'build']);
-
-        const walk = async (dirUri: vscode.Uri, depth: number) => {
-            if (depth > maxDepth) return;
+        for (const file of files) {
             try {
-                const entries = await vscode.workspace.fs.readDirectory(dirUri);
-                for (const [name, type] of entries) {
-                    if (EXCLUDED.has(name)) continue;
-                    const childUri = vscode.Uri.joinPath(dirUri, name);
-                    const rel = childUri.fsPath.replace(rootUri.fsPath, '').replace(/\\/g, '/');
-                    if (type === vscode.FileType.Directory) {
-                        results.push(rel + '/');
-                        await walk(childUri, depth + 1);
-                    } else {
-                        results.push(rel);
+                const content = await this.readWorkspaceFile(file);
+                const doc = parseDocument(content);
+                const data = doc.toJS();
+                
+                const relativePath = file;
+                const nodeId = relativePath; // Use relative path as stable ID
+                
+                const info = data.info || {};
+                const position = info['x-visdev-position'] || { x: Math.random() * 500, y: Math.random() * 500 };
+                
+                nodes.push({
+                    id: nodeId,
+                    type: info['x-visdev-layer'] || 'core',
+                    position: position,
+                    filePath: file,
+                    data: {
+                        label: info.title || path.basename(file),
+                        color: info['x-visdev-color'],
+                        description: info.description,
+                        version: info.version,
+                        raw: data // Keep full data for UI
                     }
-                }
-            } catch {}
+                });
+
+                // Edge Discovery
+                this.discoverEdges(data, nodeId, edges, file);
+            } catch (err) {
+                console.error(`Error parsing ${file}:`, err);
+            }
+        }
+
+        return { nodes, edges };
+    }
+
+    private discoverEdges(obj: any, sourceId: string, edges: VisdevEdge[], sourceFile: string) {
+        const findLinks = (current: any, pth: string = '') => {
+            if (!current || typeof current !== 'object') return;
+
+            if (current['x-link-target']) {
+                const target = current['x-link-target'];
+                // target is usually "../../registry/store-locations.yaml#/components/schemas/StoreSection/properties/label"
+                const [targetFileRel, targetInternalPath] = target.split('#');
+                const absoluteTargetFile = path.normalize(path.join(path.dirname(path.join(this.projectRoot!, sourceFile)), targetFileRel));
+                const targetId = path.relative(this.projectRoot!, absoluteTargetFile).replace(/\\/g, '/');
+
+                edges.push({
+                    id: `e-${sourceId}-${targetId}-${pth}`,
+                    source: sourceId,
+                    target: targetId,
+                    label: pth.split('.').pop(),
+                    animated: true,
+                    data: {
+                        sourcePath: pth,
+                        targetPath: targetInternalPath,
+                        type: 'relational'
+                    }
+                });
+            }
+
+            for (const key in current) {
+                findLinks(current[key], pth ? `${pth}.${key}` : key);
+            }
         };
 
-        await walk(rootUri, 0);
+        findLinks(obj);
+    }
+
+    private async recursiveListYaml(dir: string): Promise<string[]> {
+        const results: string[] = [];
+        const walk = async (currentPath: string) => {
+            const entries = await vscode.workspace.fs.readDirectory(vscode.Uri.file(currentPath));
+            for (const [name, type] of entries) {
+                const fullPath = path.join(currentPath, name);
+                if (type === vscode.FileType.Directory) {
+                    await walk(fullPath);
+                } else if (name.endsWith('.yaml') || name.endsWith('.yml')) {
+                    results.push(path.relative(this.projectRoot!, fullPath).replace(/\\/g, '/'));
+                }
+            }
+        };
+        try {
+            await walk(dir);
+        } catch {}
         return results;
     }
 
-    public async readWorkspaceFile(relativePath: string): Promise<string> {
-        const rootUri = vscode.workspace.workspaceFolders?.[0]?.uri;
-        if (!rootUri) throw new Error("No workspace.");
-        const fileUri = vscode.Uri.joinPath(rootUri, relativePath);
-        const stat = await vscode.workspace.fs.stat(fileUri);
-        const MAX_BYTES = 50 * 1024; // 50 KB cap
-        if (stat.size > MAX_BYTES) {
-            throw new Error(`File too large (${Math.round(stat.size/1024)}KB). Max allowed is 50KB.`);
+    public async updateBlueprint(action: { type: string, payload: any }): Promise<void> {
+        if (!this.projectRoot) return;
+
+        const { type, payload } = action;
+
+        switch (type) {
+            case 'UPDATE_POSITION': {
+                const { nodeId, position } = payload;
+                await this.transformYaml(nodeId, (doc) => {
+                    let info = doc.get('info');
+                    if (!info) {
+                        doc.set('info', {});
+                        info = doc.get('info');
+                    }
+                    if (isMap(info)) {
+                        info.set('x-visdev-position', position);
+                    }
+                });
+                break;
+            }
+            case 'UPDATE_FIELD': {
+                const { nodeId, path: fieldPath, value } = payload;
+                await this.transformYaml(nodeId, (doc) => {
+                    // fieldPath might be "components.schemas.GroceryItem.properties.name.type"
+                    const parts = fieldPath.split('.');
+                    doc.setIn(parts, value);
+                });
+                break;
+            }
+            case 'CREATE_RELATION': {
+                const { sourceNodeId, sourceFieldPath, targetNodeId, targetFieldPath } = payload;
+                
+                // Calculate relative path from source to target
+                const sourceAbs = path.join(this.projectRoot!, sourceNodeId);
+                const targetAbs = path.join(this.projectRoot!, targetNodeId);
+                const relPath = path.relative(path.dirname(sourceAbs), targetAbs).replace(/\\/g, '/');
+                const linkValue = `${relPath}#${targetFieldPath}`;
+
+                await this.transformYaml(sourceNodeId, (doc) => {
+                    const parts = sourceFieldPath.split('.');
+                    const field = doc.getIn(parts);
+                    if (isMap(field)) {
+                        field.set('x-link-target', linkValue);
+                    } else {
+                        // If it's a scalar or doesn't exist, we might need to create it
+                        doc.setIn([...parts, 'x-link-target'], linkValue);
+                    }
+                });
+                break;
+            }
         }
+    }
+
+    private async transformYaml(relativePath: string, transform: (doc: Document) => void) {
+        const fullPath = path.join(this.projectRoot!, relativePath);
+        const content = await this.readWorkspaceFile(relativePath);
+        const doc = parseDocument(content);
+        
+        transform(doc);
+        
+        const newContent = doc.toString();
+        await vscode.workspace.fs.writeFile(vscode.Uri.file(fullPath), Buffer.from(newContent));
+    }
+
+    public async getConfig(): Promise<VisdevConfig> {
+        if (!this.projectRoot) throw new Error("No workspace.");
+        try {
+            const content = await this.readWorkspaceFile(path.relative(this.projectRoot!, this.configPath));
+            return JSON.parse(content);
+        } catch {
+            return { name: "VisDev Project", description: "" };
+        }
+    }
+
+    public async saveConfig(config: VisdevConfig): Promise<void> {
+        if (!this.projectRoot) return;
+        await vscode.workspace.fs.writeFile(vscode.Uri.file(this.configPath), Buffer.from(JSON.stringify(config, null, 2)));
+    }
+
+    public async readWorkspaceFile(relativePath: string): Promise<string> {
+        const fileUri = vscode.Uri.file(path.join(this.projectRoot!, relativePath));
         const bytes = await vscode.workspace.fs.readFile(fileUri);
         return new TextDecoder().decode(bytes);
     }
-}
 
+    public async getChatHistory(): Promise<any[]> {
+        if (!this.projectRoot) return [];
+        try {
+            const content = await this.readWorkspaceFile(path.relative(this.projectRoot!, this.chatHistoryPath));
+            return JSON.parse(content);
+        } catch {
+            return [];
+        }
+    }
+
+    public async saveChatHistory(history: any[]): Promise<void> {
+        if (!this.projectRoot) return;
+        await vscode.workspace.fs.writeFile(vscode.Uri.file(this.chatHistoryPath), Buffer.from(JSON.stringify(history, null, 2)));
+    }
+}

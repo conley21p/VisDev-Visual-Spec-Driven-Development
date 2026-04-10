@@ -9,149 +9,118 @@ interface SettingsModalProps {
 export default function SettingsModal({ currentConfig, onSave, onDemo }: SettingsModalProps) {
     const [name, setName] = useState(currentConfig?.name === "New VisDev Project" ? "" : currentConfig?.name || "");
     const [description, setDescription] = useState(currentConfig?.description || "");
-    const [frontend, setFrontend] = useState(currentConfig?.techStack?.frontend || "React/TypeScript");
-    const [backend, setBackend] = useState(currentConfig?.techStack?.backend || "Serverless AWS API Gateway/Lambda");
-    const [database, setDatabase] = useState(currentConfig?.techStack?.database || "DynamoDB (NoSQL)");
-    const [preferredModel, setPreferredModel] = useState(currentConfig?.preferredModel || "moonshotai/kimi-k2.5");
+    const [preferredModel, setPreferredModel] = useState(currentConfig?.preferredModel || "google/gemini-2.0-flash-001");
+    const [specRoot, setSpecRoot] = useState(currentConfig?.specRoot || "specs");
 
     const handleSave = () => {
         onSave({
             ...currentConfig,
             name: name || "Untitled VisDev Project",
             description,
-            techStack: { frontend, backend, database },
-            preferredModel
+            preferredModel,
+            specRoot
         });
     };
 
     return (
         <div style={{
             position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'var(--vscode-editor-background)',
-            color: 'var(--vscode-editor-foreground)',
+            backgroundColor: 'rgba(18, 18, 18, 0.8)',
+            backdropFilter: 'blur(10px)',
+            color: '#fff',
             zIndex: 1000,
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
             padding: '20px',
-            fontFamily: 'var(--vscode-font-family)'
+            fontFamily: 'Inter, system-ui, sans-serif'
         }}>
             <div style={{
-                width: '100%', maxWidth: '500px',
-                padding: '24px',
-                border: '1px solid var(--vscode-editorGroup-border)',
-                backgroundColor: 'var(--vscode-sideBar-background)',
-                boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
-                borderRadius: '6px'
+                width: '100%', maxWidth: '460px',
+                padding: '32px',
+                background: 'rgba(30, 30, 30, 0.7)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+                borderRadius: '16px'
             }}>
-                <h2 style={{ marginTop: 0, marginBottom: '20px', color: 'var(--vscode-editor-foreground)' }}>VisDev Project Configuration</h2>
+                <h2 style={{ marginTop: 0, marginBottom: '8px', fontSize: '24px', fontWeight: 800 }}>Project Blueprint</h2>
+                <p style={{ color: '#888', marginBottom: '24px', fontSize: '13px' }}>Configure your architectural source of truth.</p>
                 
-                <div style={{ marginBottom: '15px' }}>
-                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: 'bold' }}>Project Name</label>
+                <div style={{ marginBottom: '20px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 600, color: '#aaa' }}>Project Name</label>
                     <input 
                         value={name} 
                         onChange={(e: any) => setName(e.target.value)} 
-                        placeholder="e.g. Acme Ecommerce"
-                        style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: 'var(--vscode-input-background)', color: 'var(--vscode-input-foreground)', border: '1px solid var(--vscode-input-border)', borderRadius: '2px' }} 
+                        placeholder="e.g. QuickShop Backend"
+                        style={{ width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', outline: 'none' }} 
                     />
                 </div>
 
-                <div style={{ marginBottom: '15px' }}>
-                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: 'bold' }}>Reasoning Model (NVIDIA NIM)</label>
+                <div style={{ marginBottom: '20px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 600, color: '#aaa' }}>Specification Root</label>
+                    <input 
+                        value={specRoot} 
+                        onChange={(e: any) => setSpecRoot(e.target.value)} 
+                        placeholder="e.g. specs"
+                        style={{ width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', outline: 'none' }} 
+                    />
+                </div>
+
+                <div style={{ marginBottom: '20px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 600, color: '#aaa' }}>Reasoning AI Model</label>
                     <select 
                         value={preferredModel} 
                         onChange={(e: any) => setPreferredModel(e.target.value)}
-                        style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: 'var(--vscode-dropdown-background)', color: 'var(--vscode-dropdown-foreground)', border: '1px solid var(--vscode-dropdown-border)' }}
+                        style={{ width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', outline: 'none' }}
                     >
-                        <option value="moonshotai/kimi-k2.5">NVIDIA / Moonshot Kimi K2.5</option>
-                        <option value="google/gemma-4-31b-it">Google Gemma 4 31B IT</option>
-                        <option value="nvidia/nemotron-3-super-120b-a12b">NVIDIA Nemotron-3 Super 120B</option>
+                        <option value="google/gemini-2.0-flash-001">Gemini 2.0 Flash</option>
+                        <option value="meta/llama-3.3-70b-instruct">Llama 3.3 70B</option>
+                        <option value="nvidia/llama-3.1-405b-instruct">Llama 3.1 405B (Refining)</option>
                     </select>
                 </div>
 
-                <div style={{ marginBottom: '15px' }}>
-                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: 'bold' }}>Description / Purpose</label>
+                <div style={{ marginBottom: '32px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', fontSize: '13px', fontWeight: 600, color: '#aaa' }}>Description</label>
                     <textarea 
                         value={description} 
                         onChange={(e: any) => setDescription(e.target.value)} 
                         rows={2}
-                        style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: 'var(--vscode-input-background)', color: 'var(--vscode-input-foreground)', border: '1px solid var(--vscode-input-border)', borderRadius: '2px', resize: 'vertical' }} 
+                        placeholder="Describe the high-level goals of this architecture..."
+                        style={{ width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', outline: 'none', resize: 'none' }} 
                     />
-                </div>
-
-                <div style={{ marginBottom: '15px' }}>
-                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: 'bold' }}>Frontend Architecture</label>
-                    <select 
-                        value={frontend} 
-                        onChange={(e: any) => setFrontend(e.target.value)}
-                        style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: 'var(--vscode-dropdown-background)', color: 'var(--vscode-dropdown-foreground)', border: '1px solid var(--vscode-dropdown-border)' }}
-                    >
-                        <option>React/TypeScript</option>
-                        <option>Next.js (App Router)</option>
-                        <option>Vue/Nuxt</option>
-                        <option>Vanilla HTML/JS</option>
-                        <option>None (API Only)</option>
-                    </select>
-                </div>
-
-                <div style={{ marginBottom: '15px' }}>
-                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: 'bold' }}>Backend Architecture</label>
-                    <select 
-                        value={backend} 
-                        onChange={(e: any) => setBackend(e.target.value)}
-                        style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: 'var(--vscode-dropdown-background)', color: 'var(--vscode-dropdown-foreground)', border: '1px solid var(--vscode-dropdown-border)' }}
-                    >
-                        <option>Serverless AWS API Gateway/Lambda</option>
-                        <option>Node.js Express API</option>
-                        <option>Python FastAPI</option>
-                        <option>Ruby on Rails (Monolith)</option>
-                        <option>None (Static Site)</option>
-                    </select>
-                </div>
-
-                <div style={{ marginBottom: '25px' }}>
-                    <label style={{ display: 'block', marginBottom: '5px', fontSize: '13px', fontWeight: 'bold' }}>Database</label>
-                    <select 
-                        value={database} 
-                        onChange={(e: any) => setDatabase(e.target.value)}
-                        style={{ width: '100%', padding: '8px', boxSizing: 'border-box', backgroundColor: 'var(--vscode-dropdown-background)', color: 'var(--vscode-dropdown-foreground)', border: '1px solid var(--vscode-dropdown-border)' }}
-                    >
-                        <option>PostgreSQL</option>
-                        <option>DynamoDB (NoSQL)</option>
-                        <option>MongoDB</option>
-                        <option>SQLite</option>
-                        <option>None</option>
-                    </select>
                 </div>
 
                 <button 
                     onClick={handleSave}
                     style={{
                         width: '100%', 
-                        padding: '10px', 
-                        backgroundColor: 'transparent', 
-                        color: 'var(--vscode-button-background)', 
-                        border: '1px solid var(--vscode-button-background)', 
-                        borderRadius: '2px',
+                        padding: '14px', 
+                        backgroundColor: '#007acc', 
+                        color: '#fff', 
+                        border: 'none', 
+                        borderRadius: '8px',
                         cursor: 'pointer',
-                        fontWeight: 'bold',
-                        marginBottom: '10px'
+                        fontWeight: 700,
+                        fontSize: '14px',
+                        marginBottom: '12px',
+                        transition: 'transform 0.1s'
                     }}
                 >
-                    Save Project Constraints
+                    Initialize Blueprint
                 </button>
                 <button 
                     onClick={onDemo}
                     style={{
                         width: '100%', 
-                        padding: '10px', 
-                        backgroundColor: 'var(--vscode-button-background)', 
-                        color: 'var(--vscode-button-foreground)', 
-                        border: 'none', 
-                        borderRadius: '2px',
+                        padding: '12px', 
+                        backgroundColor: 'transparent', 
+                        color: '#aaa', 
+                        border: '1px dashed rgba(255,255,255,0.2)', 
+                        borderRadius: '8px',
                         cursor: 'pointer',
-                        fontWeight: 'bold'
+                        fontWeight: 500,
+                        fontSize: '12px'
                     }}
                 >
-                    Generate 3-Node Demo Architecture (Quickstart)
+                    Scaffold Demo Specs (Grocery API)
                 </button>
             </div>
         </div>
