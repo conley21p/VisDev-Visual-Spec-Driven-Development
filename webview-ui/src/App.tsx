@@ -16,6 +16,7 @@ import dagre from 'dagre';
 
 import FeatureNode from './components/FeatureNode';
 import SettingsModal from './components/SettingsModal';
+import SpecDetailPanel from './components/SpecDetailPanel';
 
 const vscodeApi = (window as any).acquireVsCodeApi ? (window as any).acquireVsCodeApi() : null;
 
@@ -102,6 +103,8 @@ function App() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge[]>(initialEdges);
   const [config, setConfig] = useState<any>(null);
   const [showSettings, setShowSettings] = useState<boolean>(false);
+  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
   // Custom Node Logic for Bi-Directional Authoring
   const onUpdateField = useCallback((nodeId: string, path: string, value: any) => {
@@ -165,6 +168,7 @@ function App() {
         if (!message || typeof message !== 'object') return;
 
         if (message.command === 'setBlueprint') {
+            setIsRefreshing(false);
             const blueprint = message.data;
             if (blueprint && blueprint.nodes) {
                 setNodes(blueprint.nodes);
@@ -185,6 +189,14 @@ function App() {
     if (vscodeApi) vscodeApi.postMessage({ command: 'loadBlueprint' });
     return () => window.removeEventListener('message', handleMessage);
   }, [setNodes, setEdges]);
+
+  const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
+    setSelectedNode(node);
+  }, []);
+
+  const onPaneClick = useCallback(() => {
+    setSelectedNode(null);
+  }, []);
 
   const handleSaveConfig = (newConfig: any) => {
       if (vscodeApi) vscodeApi.postMessage({ command: 'saveVisdevConfig', data: newConfig });
@@ -224,10 +236,11 @@ function App() {
         nodes={nodes} 
         edges={edges}
         nodeTypes={nodeTypes}
-        onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeDragStop={onNodeDragStop}
         onConnect={onConnect}
+        onNodeClick={onNodeClick}
+        onPaneClick={onPaneClick}
         fitView
       >
         <Panel position="top-left" style={{ zIndex: 100 }}>
@@ -237,6 +250,16 @@ function App() {
                     label="Add Domain Spec" 
                     onClick={() => { /* TODO: Implement */ }}
                     style={{ backgroundColor: '#2ecc71', color: '#fff' }}
+                />
+
+                <IconButton 
+                    icon={isRefreshing ? "⏳" : "🔄"} 
+                    label={isRefreshing ? "Refreshing..." : "Refresh Specs"} 
+                    onClick={() => {
+                        setIsRefreshing(true);
+                        if (vscodeApi) vscodeApi.postMessage({ command: 'loadBlueprint' });
+                    }}
+                    style={{ backgroundColor: '#3498db', color: '#fff', opacity: isRefreshing ? 0.7 : 1 }}
                 />
 
                 <IconButton 
@@ -250,6 +273,12 @@ function App() {
         <Background gap={20} size={1} color="#222" />
         <Controls />
       </ReactFlow>
+
+      {/* Specification Detail Panel */}
+      <SpecDetailPanel 
+        node={selectedNode} 
+        onClose={() => setSelectedNode(null)} 
+      />
     </div>
   );
 }

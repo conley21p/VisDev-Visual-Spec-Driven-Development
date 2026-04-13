@@ -3,13 +3,14 @@ import * as path from 'path';
 import { Orchestrator } from './Orchestrator';
 import { BaseAgent } from './BaseAgent';
 import { BlueprintSubAgent } from './BlueprintSubAgent';
+import { VISDEV_ARCHITECTURAL_STANDARD_PROMPT } from '../sddStandards';
 
 const ORCHESTRATOR_TOOLS = [
     {
         type: "function",
         function: {
             name: "execute_sub_task",
-            description: "Spawns a specialized sub-agent (Worker) to manage, build, or update an INDIVIDUAL SPECIFICATION. Use this for deep-dive architectural work on a specific domain file. This is a BLOCKING call.",
+            description: "Spawns a specialized sub-agent (Worker) to manage, build, or update an INDIVIDUAL SPECIFICATION. Use this for deep-dive architectural work on a specific domain file. All Specification blueprint management will occur with this sub task.",
             parameters: {
                 type: "object",
                 properties: {
@@ -17,39 +18,6 @@ const ORCHESTRATOR_TOOLS = [
                     instruction: { type: "string", description: "Detailed directive for the sub-agent, including targeted spec, conceptual context, and required connections." }
                 },
                 required: ["task_id", "instruction"]
-            }
-        }
-    },
-    {
-        type: "function",
-        function: {
-            name: "create_domain_spec",
-            description: "Creates a new domain specification file in specs/domains/.",
-            parameters: {
-                type: "object",
-                properties: {
-                    filename: { type: "string", description: "e.g., payments.yaml" },
-                    title: { type: "string" },
-                    description: { type: "string" },
-                    initial_layer: { type: "string", enum: ["core", "edge", "external"] }
-                },
-                required: ["filename", "title", "description"]
-            }
-        }
-    },
-    {
-        type: "function",
-        function: {
-            name: "update_spec_field",
-            description: "Updates a specific field in a YAML specification using dotted path notation.",
-            parameters: {
-                type: "object",
-                properties: {
-                    nodeId: { type: "string", description: "The relative path to the YAML file, e.g. 'specs/domains/items.yaml'" },
-                    path: { type: "string", description: "Dotted path, e.g. 'components.schemas.User.properties.email.type'" },
-                    value: { type: "any" }
-                },
-                required: ["nodeId", "path", "value"]
             }
         }
     },
@@ -73,12 +41,61 @@ const ORCHESTRATOR_TOOLS = [
     {
         type: "function",
         function: {
+            name: "update_spec_info",
+            description: "Updates a field in the 'info' section of a specification (title, description, version, etc.).",
+            parameters: {
+                type: "object",
+                properties: {
+                    nodeId: { type: "string" },
+                    field: { type: "string", description: "The info field to update (title, description, version, etc.)" },
+                    value: { type: "any" }
+                },
+                required: ["nodeId", "field", "value"]
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "update_spec_schema",
+            description: "Adds or updates a schema in the components/schemas section.",
+            parameters: {
+                type: "object",
+                properties: {
+                    nodeId: { type: "string" },
+                    name: { type: "string", description: "The name of the schema" },
+                    schema: { type: "object", description: "The schema definition" }
+                },
+                required: ["nodeId", "name", "schema"]
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
+            name: "update_spec_endpoint",
+            description: "Adds or updates an endpoint in the paths section.",
+            parameters: {
+                type: "object",
+                properties: {
+                    nodeId: { type: "string" },
+                    path: { type: "string" },
+                    method: { type: "string", enum: ["get", "post", "put", "delete", "patch"] },
+                    spec: { type: "object" }
+                },
+                required: ["nodeId", "path", "method", "spec"]
+            }
+        }
+    },
+    {
+        type: "function",
+        function: {
             name: "read_spec_content",
             description: "Reads the raw YAML content of a specific specification file.",
             parameters: {
                 type: "object",
                 properties: {
-                    nodeId: { type: "string", description: "The relative path to the YAML file, e.g. 'specs/domains/items.yaml'" }
+                    nodeId: { type: "string", description: "The relative path to the YAML file. Note: domain-layer specs are stored in 'specs/domain/'." }
                 },
                 required: ["nodeId"]
             }
@@ -99,7 +116,7 @@ export class BlueprintOrchestrator extends Orchestrator {
         return `You are the VisDev Blueprint Architect. You build system architectures using Spec-as-Infrastructure.
         
 CORE PRINCIPLES:
-1. MODULAR YAML: System specs are stored in 'specs/domains/' (Core logic) and 'specs/registry/' (Reference data).
+1. LAYERED YAML: System specs are stored in 'specs/[layer]/' corresponding to their x-visdev-layer.
 2. AST-AWARE AUTHORING: You manipulate YAML files directly via actions. 
 3. RELATIONAL INTEGRITY: Create links between schemas using 'x-link-target' metadata.
 4. INDIVIDUAL SPEC MANAGEMENT: Use 'execute_sub_task' to delegate the detailed building and updating of specific YAML domain files to specialized sub-agents.
@@ -107,7 +124,10 @@ CORE PRINCIPLES:
 When delegating a sub-task, provide the worker with:
 - The specific Spec path and component name.
 - Conceptual system context (how this spec fits into the larger architecture).
-- Details of required connections to other nodes in the blueprint.`;
+- Details of required connections to other nodes in the blueprint.
+
+---
+${VISDEV_ARCHITECTURAL_STANDARD_PROMPT}`;
     }
 
     protected getTools(): any[] {
@@ -126,29 +146,28 @@ When delegating a sub-task, provide the worker with:
             case 'execute_sub_task':
                 return await this.handleSubTask(toolCall, webviewView);
 
-            case 'create_domain_spec': {
-                const relativePath = `specs/domains/${args.filename}`;
-                const initialContent = `openapi: 3.1.0\ninfo:\n  title: ${args.title}\n  version: 1.0.0\n  description: ${args.description}\n  x-visdev-layer: ${args.initial_layer || 'core'}\n\npaths: {}\ncomponents:\n  schemas: {}\n`;
-
-                const projectRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
-                if (!projectRoot) return "ERROR: No workspace.";
-
-                const fullPath = vscode.Uri.file(path.join(projectRoot, relativePath));
-                await vscode.workspace.fs.writeFile(fullPath, Buffer.from(initialContent));
-
-                return `SUCCESS: Created new domain spec at ${relativePath}`;
+            case 'update_spec_info': {
+                await this.visdevManager.updateBlueprint({
+                    type: 'UPDATE_INFO',
+                    payload: { nodeId: args.nodeId, field: args.field, value: args.value }
+                });
+                return `SUCCESS: Updated info.${args.field} in ${args.nodeId}`;
             }
 
-            case 'update_spec_field': {
+            case 'update_spec_schema': {
                 await this.visdevManager.updateBlueprint({
-                    type: 'UPDATE_FIELD',
-                    payload: {
-                        nodeId: args.nodeId,
-                        path: args.path,
-                        value: args.value
-                    }
+                    type: 'UPDATE_SCHEMA',
+                    payload: { nodeId: args.nodeId, name: args.name, schema: args.schema }
                 });
-                return `SUCCESS: Updated ${args.path} in ${args.nodeId}`;
+                return `SUCCESS: Updated schema ${args.name} in ${args.nodeId}`;
+            }
+
+            case 'update_spec_endpoint': {
+                await this.visdevManager.updateBlueprint({
+                    type: 'UPDATE_ENDPOINT',
+                    payload: { nodeId: args.nodeId, path: args.path, method: args.method, spec: args.spec }
+                });
+                return `SUCCESS: Updated endpoint ${args.method.toUpperCase()} ${args.path} in ${args.nodeId}`;
             }
 
             case 'connect_nodes': {

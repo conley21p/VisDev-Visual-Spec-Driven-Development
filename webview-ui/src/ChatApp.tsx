@@ -21,6 +21,83 @@ interface Activity {
     logs: { text: string; payload?: string; timestamp: number }[];
 }
 
+const DebugLogItem: React.FC<{ m: Message | { text: string, payload?: string, id?: string } }> = ({ m }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const [copied, setCopied] = useState(false);
+    
+    const copyToClipboard = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!m.payload) return;
+        navigator.clipboard.writeText(m.payload);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    const getLogType = (text: string) => {
+        const t = (text || '').toUpperCase();
+        if (t.includes('REQUEST')) return 'request';
+        if (t.includes('RESPONSE')) return 'response';
+        if (t.includes('TOOL')) return 'tool';
+        if (t.includes('ERROR')) return 'error';
+        if (t.includes('SUCCESS')) return 'success';
+        return 'info';
+    };
+
+    const type = getLogType(m.text || '');
+    const id = (m as any).id || Math.random().toString(36).substr(2, 9);
+    
+    const renderIcon = () => {
+        switch (type) {
+            case 'request': 
+                return <svg className="debug-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>;
+            case 'response': 
+                return <svg className="debug-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>;
+            case 'tool': 
+                return <svg className="debug-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>;
+            case 'error': 
+                return <svg className="debug-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>;
+            case 'success':
+                return <svg className="debug-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
+            default: 
+                return <svg className="debug-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>;
+        }
+    };
+
+    return (
+        <div className={`debug-log-item ${isExpanded ? 'expanded' : ''}`} key={id}>
+            <div className={`debug-line-accent accent-${type}`} />
+            
+            <div className="debug-header" onClick={() => setIsExpanded(!isExpanded)}>
+                <div className="debug-icon-wrapper">
+                    {renderIcon()}
+                </div>
+                <span className="debug-title">{m.text}</span>
+                {m.payload && (
+                    <svg className="debug-chevron-modern" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M19 9l-7 7-7-7" />
+                    </svg>
+                )}
+            </div>
+
+            {isExpanded && m.payload && (
+                <div className="debug-expanded-content">
+                    <div className="debug-payload-container">
+                        <button 
+                            className={`debug-modern-copy ${copied ? 'copied' : ''}`}
+                            onClick={copyToClipboard}
+                        >
+                            {copied ? 'COPIED' : 'COPY'}
+                        </button>
+                        <pre className="debug-payload-pre">
+                            {m.payload}
+                        </pre>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 const ChatApp: React.FC = () => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [activities, setActivities] = useState<Record<string, Activity>>({});
@@ -235,14 +312,18 @@ const ChatApp: React.FC = () => {
 
             <div 
                 ref={scrollRef}
+                className="chat-scroll-container"
                 style={{ 
-                    flex: 1, 
+                    flex: '1 1 auto', 
                     overflowY: 'auto', 
-                    padding: '12px', 
+                    padding: '12px 12px 60px 12px', 
                     display: 'flex', 
                     flexDirection: 'column', 
+                    alignItems: 'stretch',
                     gap: '12px',
-                    scrollBehavior: 'smooth'
+                    scrollBehavior: 'smooth',
+                    height: '100%',
+                    minHeight: 0
                 }}
             >
                 {messages.length === 0 && (
@@ -264,14 +345,17 @@ const ChatApp: React.FC = () => {
                         if (!activity) return null;
                         return (
                             <div key={m.id} className="activity-card" style={{
-                                padding: '12px',
-                                background: 'var(--vscode-editor-background)',
+                                margin: '8px 0',
+                                padding: '16px',
+                                background: 'rgba(255, 255, 255, 0.03)',
                                 border: '1px solid var(--vscode-divider)',
-                                borderRadius: '8px',
+                                borderRadius: '12px',
                                 display: 'flex',
                                 flexDirection: 'column',
-                                gap: '8px',
-                                animation: 'fadeIn 0.3s ease-out'
+                                gap: '10px',
+                                animation: 'fadeIn 0.3s ease-out',
+                                boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                                flexShrink: 0
                             }}>
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', fontWeight: 'bold' }}>
@@ -309,42 +393,7 @@ const ChatApp: React.FC = () => {
                     }
 
                     return m.sender === 'technical' ? (
-                        <div 
-                            key={m.id}
-                            style={{
-                                padding: '4px 8px',
-                                margin: '2px 0',
-                                fontSize: '10px',
-                                fontFamily: 'var(--vscode-editor-font-family), monospace',
-                                opacity: 0.5,
-                                color: 'var(--vscode-descriptionForeground)',
-                                borderLeft: '2px solid var(--vscode-divider)',
-                                whiteSpace: 'normal',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                cursor: 'pointer'
-                            }}
-                        >
-                            <details style={{ width: '100%' }}>
-                                <summary style={{ listStyle: 'none', outline: 'none' }}>
-                                    {m.text}
-                                </summary>
-                                <pre style={{ 
-                                    marginTop: '8px', 
-                                    padding: '8px', 
-                                    background: 'rgba(0,0,0,0.2)', 
-                                    borderRadius: '4px',
-                                    fontSize: '9px',
-                                    whiteSpace: 'pre-wrap',
-                                    color: 'var(--vscode-foreground)',
-                                    userSelect: 'text',
-                                    maxHeight: '400px',
-                                    overflow: 'auto'
-                                }}>
-                                    {m.payload || 'No payload data.'}
-                                </pre>
-                            </details>
-                        </div>
+                        <DebugLogItem key={m.id} m={m} />
                     ) : (
                         <div 
                             key={m.id} 
@@ -439,24 +488,7 @@ const ChatApp: React.FC = () => {
                         gap: '8px'
                     }}>
                         {activities[activeActivityId].logs.map((log, idx) => (
-                            <div key={idx} style={{ fontSize: '10px', fontFamily: 'monospace' }}>
-                                <div style={{ opacity: 0.3, marginBottom: '2px' }}>[{new Date(log.timestamp).toLocaleTimeString()}]</div>
-                                <div style={{ color: log.payload ? '#3498db' : 'inherit' }}>{log.text}</div>
-                                {log.payload && (
-                                    <pre style={{ 
-                                        margin: '4px 0 12px 0', 
-                                        padding: '8px', 
-                                        background: 'rgba(255,255,255,0.02)', 
-                                        borderRadius: '4px', 
-                                        maxHeight: '200px', 
-                                        overflow: 'auto',
-                                        fontSize: '9px',
-                                        opacity: 0.6
-                                    }}>
-                                        {log.payload}
-                                    </pre>
-                                )}
-                            </div>
+                            <DebugLogItem key={idx} m={log} />
                         ))}
                     </div>
                 </div>

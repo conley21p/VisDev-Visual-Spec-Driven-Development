@@ -57,10 +57,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
     if (!hasAnyKey) {
         const apiKey = await vscode.window.showInputBox({
-            prompt: 'Welcome to VisDev IDE! Please enter your NVIDIA NIM API Key to power Llama, Gemma, and Nemotron models.',
+            prompt: `Welcome to VisDev IDE! Please enter your API Key for the default model: ${defaultModelId}`,
             ignoreFocusOut: true,
             password: true,
-            placeHolder: 'e.g. nvapi-...'
+            placeHolder: defaultModelId.startsWith('nvidia') ? 'nvapi-...' : 'Enter your API key'
         });
 
         if (apiKey) {
@@ -167,7 +167,7 @@ export async function activate(context: vscode.ExtensionContext) {
             prompt: `Enter API Key for model: ${profileName}`,
             ignoreFocusOut: true,
             password: true,
-            placeHolder: 'nvapi-...'
+            placeHolder: profileName.startsWith('nvidia') ? 'nvapi-...' : 'Enter your API key'
         });
 
         if (newKey) {

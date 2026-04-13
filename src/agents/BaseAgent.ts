@@ -90,13 +90,12 @@ export abstract class BaseAgent {
                 webviewView.webview.postMessage({ type: 'streamStart', sender: 'Agent' });
             }
 
-            const response = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
+            const { url, headers } = this.getApiConfiguration();
+
+            const response = await fetch(url, {
                 method: "POST",
                 signal: this.abortController.signal,
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${this.apiKey}`
-                },
+                headers: headers,
                 body: JSON.stringify({ ...requestBody, stream: true })
             });
 
@@ -168,6 +167,15 @@ export abstract class BaseAgent {
                 const assembledMessage: ChatMessage = { role: 'assistant', content: contentBuffer || null, tool_calls: Object.values(toolCallAccumulator) };
                 this.chatHistory.push(assembledMessage);
 
+                // Finalize the current streaming bubble before starting tool execution logs
+                if (!isWorker) {
+                    webviewView.webview.postMessage({ 
+                        type: 'addMessage', 
+                        sender: 'Agent', 
+                        message: contentBuffer 
+                    });
+                }
+
                 for (const tool_call of assembledMessage.tool_calls!) {
                     const toolCallMsg = `Tool Call: ${tool_call.function.name}`;
                     if (isWorker && taskId) {
@@ -201,7 +209,14 @@ export abstract class BaseAgent {
             } else {
                 if (contentBuffer.trim().length > 0) {
                     this.chatHistory.push({ role: "assistant", content: contentBuffer });
-                    if (!isWorker) await this.visdevManager.saveChatHistory(this.chatHistory);
+                    if (!isWorker) {
+                        await this.visdevManager.saveChatHistory(this.chatHistory);
+                        webviewView.webview.postMessage({ 
+                            type: 'addMessage', 
+                            sender: 'Agent', 
+                            message: contentBuffer 
+                        });
+                    }
                 }
                 return contentBuffer;
             }
@@ -218,6 +233,25 @@ export abstract class BaseAgent {
             this.isProcessing = false;
             this.abortController = null;
         }
+    }
+
+    protected getApiConfiguration(): { url: string, headers: Record<string, string> } {
+        const NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions";
+        const GOOGLE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+
+        let url = NVIDIA_URL;
+        const lowModel = this.model.toLowerCase();
+        if (lowModel.startsWith('gemini') || lowModel.includes('google') || lowModel.includes('vertex')) {
+            url = GOOGLE_URL;
+        }
+
+        return {
+            url,
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${this.apiKey}`
+            }
+        };
     }
 
     protected normalizeArguments(name: string, args: any): any {

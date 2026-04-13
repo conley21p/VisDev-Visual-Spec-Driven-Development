@@ -100,10 +100,202 @@ body {
 
 /* Animations */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 .fade-in {
   animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
+
+/* Markdown Table Responsiveness & Layout Fixes */
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 11px;
+  table-layout: fixed;
+  border: 1px solid var(--vscode-divider);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.markdown-content th {
+  background: var(--vscode-editor-background);
+  color: var(--vscode-foreground);
+  font-weight: 700;
+  text-align: left;
+  padding: 8px;
+  border-bottom: 2px solid var(--vscode-divider);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.markdown-content td {
+  padding: 8px;
+  border-bottom: 1px solid var(--vscode-divider);
+  vertical-align: top;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.markdown-content tr:last-child td {
+  border-bottom: none;
+}
+
+.markdown-content tr:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.message-group {
+  flex-shrink: 0 !important;
+}
+
+.message-bubble {
+  min-height: min-content;
+  overflow: visible;
+}
+
+/* Modern Glass Timeline Debug UI */
+.debug-log-item {
+  margin: 6px 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05); /* Increased from 0.02 for better contrast */
+  border: 1px solid rgba(255, 255, 255, 0.08); /* Increased from 0.04 */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: fadeIn 0.3s ease-out;
+  position: relative;
+  min-height: fit-content;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.debug-log-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.debug-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 12px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 11px;
+  gap: 12px;
+  line-height: 1.4;
+  min-height: 32px;
+}
+
+.debug-line-accent {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  opacity: 0.6;
+}
+
+.accent-request { background: #3498db; box-shadow: 0 0 10px rgba(52, 152, 219, 0.3); }
+.accent-response { background: #2ecc71; box-shadow: 0 0 10px rgba(46, 204, 113, 0.3); }
+.accent-tool { background: #9b59b6; box-shadow: 0 0 10px rgba(155, 89, 182, 0.3); }
+.accent-error { background: #e74c3c; box-shadow: 0 0 10px rgba(231, 76, 60, 0.3); }
+.accent-success { background: #00ff88; box-shadow: 0 0 12px rgba(0, 255, 136, 0.4); } /* New success accent */
+.accent-info { background: #95a5a6; }
+
+.debug-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  flex-shrink: 0;
+}
+
+.debug-icon {
+  width: 12px;
+  height: 12px;
+  opacity: 0.8;
+}
+
+.debug-title {
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.95); /* Increased from 0.85 for better visibility */
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  flex: 1;
+  line-height: 1.5;
+  padding: 4px 0;
+}
+
+.debug-chevron-modern {
+  width: 12px;
+  height: 12px;
+  transition: transform 0.3s ease;
+  opacity: 0.4;
+}
+
+.expanded .debug-chevron-modern {
+  transform: rotate(180deg);
+}
+
+.debug-expanded-content {
+  padding: 0 12px 12px 32px;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.debug-payload-container {
+  position: relative;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.debug-payload-pre {
+  margin: 0;
+  padding: 12px;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', 'Fira Code', var(--vscode-editor-font-family, monospace);
+  line-height: 1.6;
+  color: #c5c5c5;
+  overflow-x: auto;
+  max-height: 350px;
+}
+
+.debug-modern-copy {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.debug-modern-copy:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.debug-modern-copy.copied {
+  color: #2ecc71;
+  background: rgba(46, 204, 113, 0.1);
+  border-color: rgba(46, 204, 113, 0.3);
+}
+

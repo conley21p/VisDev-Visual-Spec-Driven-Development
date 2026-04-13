@@ -5,7 +5,7 @@
 
 VisDev is an AI-powered VS Code extension that enables true **Visual Spec-Driven Development** (SDD). 
 
-VisDev provides a dynamic, interactive Blueprint graph directly inside your editor. Instead of getting bogged down in dense Markdown specification files, you visually define features, API endpoints, and data models. An autonomous AI agent then acts on this visual topology to write your implementation code. To ensure architectural integrity, VisDev actively monitors your file system to detect manual code overrides, immediately alerting you and offering AI-assisted pathways to reconcile code drift with your visual spec map.
+VisDev provides a dynamic, interactive Blueprint graph directly inside your editor. Instead of getting bogged down in manual documentation, you visually define features, API endpoints, and data models using a robust **OpenAPI 3.1.0 (YAML)** schema. An autonomous AI agent then acts on this visual topology to write your implementation code. To ensure architectural integrity, VisDev actively monitors your file system to detect manual code overrides, immediately alerting you and offering AI-assisted pathways to reconcile code drift with your visual spec map.
 
 ## Product Founding Description
 
@@ -36,5 +36,5 @@ VisDev is built as a **Rich VS Code Extension**, leveraging native editor APIs f
 To keep the specification system highly robust, git-friendly, and easy for the LLM to parse, the underlying data architecture relies on a local `.visdev` directory injected into the root of the workspace:
 
 - **`visdev.json`**: The core source of truth defining the project name, global constraints, tech stack tags, and file-to-node mapping bindings.
-- **`.visdev/specs/[node_id].md`**: The actual rich Markdown specification for each visual node. (The visual graph topology coordinates are stored separately so they don't bloat the LLM context limits).
-- **`visdev_sync.json`**: Tracks the drift state. When a file watcher flags an edited file, the system triggers a silent background LLM evaluation against the Markdown spec to determine if the edit constitutes "True Architecture Drift." If true, the specific React Flow node flashes yellow, prompting the developer to use a Sidebar Agent action to either officially assimilate the new code into the spec, or revert the code to stay within architectural compliance.
+- **`specs/[layer]/[node_id].yaml`**: The actual OpenAPI 3.1.0 specification for each visual node. Includes custom `x-visdev-` extensions for layering, positions, and **Verification Scenarios**.
+- **`visdev_sync.json`**: Tracks the drift state. When a file watcher flags an edited file, the system triggers a silent background LLM evaluation against the YAML spec to determine if the edit constitutes "True Architecture Drift." If true, the specific React Flow node flashes yellow, prompting the developer to use a Sidebar Agent action to either officially assimilate the new code into the spec, or revert the code to stay within architectural compliance.

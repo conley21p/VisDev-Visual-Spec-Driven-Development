@@ -2,6 +2,54 @@
  * VisDev Architectural Standards for Specification-Driven Development (SDD)
  */
 
+export const VISDEV_LAYER_ENUM = `
+- **domain**: Core business logic or service modules (stored in specs/domain/).
+- **ui**: Frontend components, pages, or visual elements (stored in specs/ui/).
+- **external**: Third-party APIs, external systems, or integrations (stored in specs/external/).
+- **data**: Persistent storage, databases, or static registries (stored in specs/data/).
+- **infra**: Infrastructure components (gateways, load balancers, caching) (stored in specs/infra/).
+- **worker**: Background processes, cron jobs, or message consumers (stored in specs/worker/).
+`.trim();
+
+export const VISDEV_SPEC_YAML_SCHEMA = `
+### VisDev YAML Specification Reference (OpenAPI 3.1.x)
+Every Spec file MUST strictly adhere to these top-level keys and the 'x-visdev-' extensions:
+
+\`\`\`yaml
+openapi: 3.1.0
+info:
+  title: [Human Readable Title]
+  version: 1.0.0
+  description: [Functional purpose of this node]
+  x-visdev-layer: [domain | ui | external | data | infra | worker]
+  x-visdev-position:
+    x: [number]
+    y: [number]
+  x-visdev-color: [Optional hex code, e.g. "#2ecc71"]
+  x-visdev-tests:
+    - name: [Scenario Name]
+      scenario: [Step-by-step description]
+      expected: [Outcome or Assertion]
+
+components:
+  schemas:
+    [EntityName]:
+      type: object
+      properties:
+        [fieldName]:
+          type: [type]
+          x-link-target: "[relativePath]#[targetPath]" # RELATIONAL LINKING
+
+paths:
+  /[path]:
+    [method]:
+      summary: [Summary]
+      responses:
+        '200':
+          description: OK
+\`\`\`
+`.trim();
+
 export const SDD_TYPE_MANUAL = `
 ## VisDev Architectural Node Types (Reference Manual)
 You MUST categorize every node into one of these types. Each type has specific technical requirements for its Spec pillars:
@@ -72,6 +120,14 @@ Define the "Context". This field MUST include:
 1. **Functional Purpose**: Why does this node exist?
 2. **Ownership**: Who maintains this spec?
 3. **Classification Tags**: e.g., #MissionCritical, #Experimental.
+`.trim(),
+
+    VERIFICATION: `
+### Pillar 5: Testing & Verification
+Define the "Correctness". This field MUST include:
+1. **Test Scenarios**: Step-by-step logical verification paths (stored in x-visdev-tests).
+2. **Edge Cases**: Identification of failure modes and boundary conditions.
+3. **Expected Outcomes**: Explicit assertions for system behavior.
 `.trim()
 };
 
@@ -83,12 +139,24 @@ ${SDD_TYPE_MANUAL}
 
 ---
 
+VISDEV DATA ENUM LEVELS (x-visdev-layer):
+${VISDEV_LAYER_ENUM}
+
+---
+
+TECHNICAL SCHEMA STANDARD:
+${VISDEV_SPEC_YAML_SCHEMA}
+
+---
+
 CORE PILLAR REQUIREMENTS:
 ${SDD_PILLAR_DEFINITIONS.CONSTRAINTS}
 
 ${SDD_PILLAR_DEFINITIONS.INTERACTION_PATTERNS}
 
 ${SDD_PILLAR_DEFINITIONS.METADATA}
+
+${SDD_PILLAR_DEFINITIONS.VERIFICATION}
 
 ---
 

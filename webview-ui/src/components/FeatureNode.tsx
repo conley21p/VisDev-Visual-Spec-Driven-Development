@@ -52,6 +52,24 @@ export default function FeatureNode({ data, selected, type, id, onUpdateField }:
                 {type || 'Spec'}
             </div>
 
+            {/* Test Indicator Badge */}
+            {info['x-visdev-tests'] && info['x-visdev-tests'].length > 0 && (
+                <div style={{
+                    position: 'absolute',
+                    top: '12px',
+                    right: '12px',
+                    fontSize: '9px',
+                    fontWeight: 800,
+                    background: borderColor + '22',
+                    color: borderColor,
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    border: `1px solid ${borderColor + '44'}`
+                }}>
+                    TESTS
+                </div>
+            )}
+
             {/* Editable Title */}
             {editingPath === 'info.title' ? (
                 <input 
@@ -118,6 +136,59 @@ export default function FeatureNode({ data, selected, type, id, onUpdateField }:
                                             {method}
                                         </span>
                                     ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Specification Test Preview */}
+            {info['x-visdev-tests'] && info['x-visdev-tests'].length > 0 && (
+                <div style={{ 
+                    marginBottom: '16px', 
+                    borderTop: '1px solid rgba(255, 255, 255, 0.05)', 
+                    paddingTop: '10px' 
+                }}>
+                    <div style={{ 
+                        fontSize: '9px', 
+                        color: borderColor, 
+                        fontWeight: 800, 
+                        marginBottom: '8px', 
+                        letterSpacing: '0.8px',
+                        textTransform: 'uppercase',
+                        opacity: 0.9
+                    }}>
+                        SPECIFICATION TEST PREVIEW
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {info['x-visdev-tests'].map((test: any, index: number) => (
+                            <div key={index} style={{ 
+                                background: 'rgba(255,255,255,0.02)', 
+                                padding: '6px 10px', 
+                                borderRadius: '6px',
+                                borderLeft: `2px solid ${borderColor + '44'}`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                transition: 'all 0.2s ease'
+                            }}>
+                                <div style={{ 
+                                    width: '4px', 
+                                    height: '4px', 
+                                    borderRadius: '50%', 
+                                    background: borderColor,
+                                    boxShadow: `0 0 6px ${borderColor}`
+                                }}></div>
+                                <div style={{ 
+                                    fontSize: '11px', 
+                                    fontWeight: 500, 
+                                    color: '#eee',
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis'
+                                }}>
+                                    {test.name}
                                 </div>
                             </div>
                         ))}

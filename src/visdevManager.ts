@@ -14,6 +14,8 @@ export interface VisdevEdge {
     id: string;
     source: string;
     target: string;
+    sourceHandle?: string;
+    targetHandle?: string;
     label?: string;
     animated?: boolean;
     style?: any;
@@ -35,63 +37,89 @@ export class VisdevManager {
     private projectRoot: string | undefined;
 
     constructor() {
+        // Initial sync best effort, but will be refined by ensureProjectRoot
         if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
             this.projectRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
         }
+    }
+
+    private async ensureProjectRoot(): Promise<string> {
+        // If we haven't searched yet, or we're in a multi-folder workspace, we search for the .visdev boundary
+        const configFiles = await vscode.workspace.findFiles('**/.visdev/visdev.json', '**/node_modules/**', 1);
+        if (configFiles.length > 0) {
+            this.projectRoot = path.dirname(path.dirname(configFiles[0].fsPath));
+        } else if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+            this.projectRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
+        }
+        
+        if (!this.projectRoot) {
+            throw new Error("No workspace or VisDev project found.");
+        }
+        return this.projectRoot;
     }
 
     public isInitialized(): boolean {
         return this.projectRoot !== undefined;
     }
 
-    private get visdevDirPath(): string {
-        return path.join(this.projectRoot!, '.visdev');
+    private async getVisdevDirPath(): Promise<string> {
+        const root = await this.ensureProjectRoot();
+        return path.join(root, '.visdev');
     }
 
-    private get specsPath(): string {
-        return path.join(this.projectRoot!, 'specs');
+    private async getSpecsPath(): Promise<string> {
+        const root = await this.ensureProjectRoot();
+        return path.join(root, 'specs');
     }
 
-    private get configPath(): string {
-        return path.join(this.visdevDirPath, 'visdev.json');
+    private async getConfigPath(): Promise<string> {
+        const dir = await this.getVisdevDirPath();
+        return path.join(dir, 'visdev.json');
     }
 
-    private get chatHistoryPath(): string {
-        return path.join(this.visdevDirPath, 'chat_history.json');
+    private async getChatHistoryPath(): Promise<string> {
+        const dir = await this.getVisdevDirPath();
+        return path.join(dir, 'chat_history.json');
     }
 
     public async initializeProject(): Promise<void> {
-        if (!this.projectRoot) throw new Error("No workspace opened.");
+        const root = await this.ensureProjectRoot();
+        const visdevPath = await this.getVisdevDirPath();
+        const specsPath = await this.getSpecsPath();
 
-        const visdevUri = vscode.Uri.file(this.visdevDirPath);
-        const specsUri = vscode.Uri.file(this.specsPath);
+        const visdevUri = vscode.Uri.file(visdevPath);
+        const specsUri = vscode.Uri.file(specsPath);
 
         await vscode.workspace.fs.createDirectory(visdevUri);
         await vscode.workspace.fs.createDirectory(specsUri);
-        await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.join(this.specsPath, 'domains')));
-        await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.join(this.specsPath, 'registry')));
-        await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.join(this.specsPath, 'shared')));
+
+        const layers = ['domain', 'ui', 'external', 'data', 'infra', 'worker'];
+        for (const layer of layers) {
+            await vscode.workspace.fs.createDirectory(vscode.Uri.file(path.join(specsPath, layer)));
+        }
 
         // Config initialization
+        const configPath = await this.getConfigPath();
         try {
-            await vscode.workspace.fs.stat(vscode.Uri.file(this.configPath));
+            await vscode.workspace.fs.stat(vscode.Uri.file(configPath));
         } catch {
             const defaultConfig: VisdevConfig = {
                 name: "New VisDev Project",
                 description: "Spec-as-Infrastructure Workspace",
                 preferredModel: "google/gemini-2.0-flash-001"
             };
-            await vscode.workspace.fs.writeFile(vscode.Uri.file(this.configPath), Buffer.from(JSON.stringify(defaultConfig, null, 2)));
+            await vscode.workspace.fs.writeFile(vscode.Uri.file(configPath), Buffer.from(JSON.stringify(defaultConfig, null, 2)));
         }
     }
 
     public async getBlueprint(): Promise<VisdevBlueprint> {
-        if (!this.projectRoot) throw new Error("No workspace.");
+        const root = await this.ensureProjectRoot();
+        const specsPath = await this.getSpecsPath();
         
         const nodes: VisdevNode[] = [];
         const edges: VisdevEdge[] = [];
         
-        const files = await this.recursiveListYaml(this.specsPath);
+        const files = await this.recursiveListYaml(specsPath);
         
         for (const file of files) {
             try {
@@ -129,6 +157,15 @@ export class VisdevManager {
         return { nodes, edges };
     }
 
+    private normalizePath(rawPath: string): string {
+        if (!rawPath) return '';
+        // Strip leading # or #/ or /
+        let normalized = rawPath.replace(/^#\/?/, '').replace(/^\//, '');
+        // Convert / to .
+        normalized = normalized.replace(/\//g, '.');
+        return normalized;
+    }
+
     private discoverEdges(obj: any, sourceId: string, edges: VisdevEdge[], sourceFile: string) {
         const findLinks = (current: any, pth: string = '') => {
             if (!current || typeof current !== 'object') return;
@@ -140,10 +177,15 @@ export class VisdevManager {
                 const absoluteTargetFile = path.normalize(path.join(path.dirname(path.join(this.projectRoot!, sourceFile)), targetFileRel));
                 const targetId = path.relative(this.projectRoot!, absoluteTargetFile).replace(/\\/g, '/');
 
+                const sourceHandle = this.normalizePath(pth);
+                const targetHandle = this.normalizePath(targetInternalPath);
+
                 edges.push({
                     id: `e-${sourceId}-${targetId}-${pth}`,
                     source: sourceId,
                     target: targetId,
+                    sourceHandle,
+                    targetHandle,
                     label: pth.split('.').pop(),
                     animated: true,
                     data: {
@@ -182,7 +224,7 @@ export class VisdevManager {
     }
 
     public async updateBlueprint(action: { type: string, payload: any }): Promise<void> {
-        if (!this.projectRoot) return;
+        const root = await this.ensureProjectRoot();
 
         const { type, payload } = action;
 
@@ -204,9 +246,9 @@ export class VisdevManager {
             case 'UPDATE_FIELD': {
                 const { nodeId, path: fieldPath, value } = payload;
                 await this.transformYaml(nodeId, (doc) => {
-                    // fieldPath might be "components.schemas.GroceryItem.properties.name.type"
                     const parts = fieldPath.split('.');
-                    doc.setIn(parts, value);
+                    const parsedValue = this.tryParseObject(value);
+                    doc.setIn(parts, parsedValue);
                 });
                 break;
             }
@@ -231,11 +273,87 @@ export class VisdevManager {
                 });
                 break;
             }
+            case 'CREATE_SPEC': {
+                const { nodeId, layer, title } = payload;
+                const fullPath = path.join(this.projectRoot!, nodeId);
+                const dir = path.dirname(fullPath);
+                
+                try {
+                    await vscode.workspace.fs.createDirectory(vscode.Uri.file(dir));
+                } catch {}
+
+                const doc = new Document({
+                    openapi: "3.0.0",
+                    info: {
+                        title: title || path.basename(nodeId, '.yaml'),
+                        version: "1.0.0",
+                        'x-visdev-layer': layer || 'core',
+                        'x-visdev-position': { x: Math.random() * 200, y: Math.random() * 200 }
+                    },
+                    paths: {},
+                    components: { schemas: {} }
+                });
+                
+                await vscode.workspace.fs.writeFile(vscode.Uri.file(fullPath), Buffer.from(doc.toString()));
+                break;
+            }
+            case 'DELETE_SPEC': {
+                const { nodeId } = payload;
+                const fullPath = path.join(this.projectRoot!, nodeId);
+                await vscode.workspace.fs.delete(vscode.Uri.file(fullPath), { recursive: true, useTrash: true });
+                break;
+            }
+            case 'DELETE_FIELD': {
+                const { nodeId, path: fieldPath } = payload;
+                await this.transformYaml(nodeId, (doc) => {
+                    const parts = fieldPath.split('.');
+                    doc.deleteIn(parts);
+                });
+                break;
+            }
+            case 'UPDATE_INFO': {
+                const { nodeId, field, value } = payload;
+                await this.transformYaml(nodeId, (doc) => {
+                    doc.setIn(['info', field], value);
+                });
+                break;
+            }
+            case 'UPDATE_SCHEMA': {
+                const { nodeId, name, schema } = payload;
+                await this.transformYaml(nodeId, (doc) => {
+                    const parsedSchema = this.tryParseObject(schema);
+                    doc.setIn(['components', 'schemas', name], parsedSchema);
+                });
+                break;
+            }
+            case 'UPDATE_ENDPOINT': {
+                const { nodeId, path: endpointPath, method, spec } = payload;
+                await this.transformYaml(nodeId, (doc) => {
+                    const parsedSpec = this.tryParseObject(spec);
+                    // Use array pathing to ensure dots in URL paths (e.g. v1.1) are handled correctly
+                    doc.setIn(['paths', endpointPath, method.toLowerCase()], parsedSpec);
+                });
+                break;
+            }
         }
     }
 
+    private tryParseObject(value: any): any {
+        if (typeof value !== 'string') return value;
+        const trimmed = value.trim();
+        if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+            try {
+                return JSON.parse(trimmed);
+            } catch (e) {
+                return value;
+            }
+        }
+        return value;
+    }
+
     private async transformYaml(relativePath: string, transform: (doc: Document) => void) {
-        const fullPath = path.join(this.projectRoot!, relativePath);
+        const root = await this.ensureProjectRoot();
+        const fullPath = path.join(root, relativePath);
         const content = await this.readWorkspaceFile(relativePath);
         const doc = parseDocument(content);
         
@@ -246,9 +364,10 @@ export class VisdevManager {
     }
 
     public async getConfig(): Promise<VisdevConfig> {
-        if (!this.projectRoot) throw new Error("No workspace.");
+        const root = await this.ensureProjectRoot();
+        const configPath = await this.getConfigPath();
         try {
-            const content = await this.readWorkspaceFile(path.relative(this.projectRoot!, this.configPath));
+            const content = await this.readWorkspaceFile(path.relative(root, configPath));
             return JSON.parse(content);
         } catch {
             return { name: "VisDev Project", description: "" };
@@ -256,20 +375,23 @@ export class VisdevManager {
     }
 
     public async saveConfig(config: VisdevConfig): Promise<void> {
-        if (!this.projectRoot) return;
-        await vscode.workspace.fs.writeFile(vscode.Uri.file(this.configPath), Buffer.from(JSON.stringify(config, null, 2)));
+        const root = await this.ensureProjectRoot();
+        const configPath = await this.getConfigPath();
+        await vscode.workspace.fs.writeFile(vscode.Uri.file(configPath), Buffer.from(JSON.stringify(config, null, 2)));
     }
 
     public async readWorkspaceFile(relativePath: string): Promise<string> {
-        const fileUri = vscode.Uri.file(path.join(this.projectRoot!, relativePath));
+        const root = await this.ensureProjectRoot();
+        const fileUri = vscode.Uri.file(path.join(root, relativePath));
         const bytes = await vscode.workspace.fs.readFile(fileUri);
         return new TextDecoder().decode(bytes);
     }
 
     public async getChatHistory(): Promise<any[]> {
-        if (!this.projectRoot) return [];
+        const root = await this.ensureProjectRoot();
+        const chatHistoryPath = await this.getChatHistoryPath();
         try {
-            const content = await this.readWorkspaceFile(path.relative(this.projectRoot!, this.chatHistoryPath));
+            const content = await this.readWorkspaceFile(path.relative(root, chatHistoryPath));
             return JSON.parse(content);
         } catch {
             return [];
@@ -277,7 +399,8 @@ export class VisdevManager {
     }
 
     public async saveChatHistory(history: any[]): Promise<void> {
-        if (!this.projectRoot) return;
-        await vscode.workspace.fs.writeFile(vscode.Uri.file(this.chatHistoryPath), Buffer.from(JSON.stringify(history, null, 2)));
+        const root = await this.ensureProjectRoot();
+        const chatHistoryPath = await this.getChatHistoryPath();
+        await vscode.workspace.fs.writeFile(vscode.Uri.file(chatHistoryPath), Buffer.from(JSON.stringify(history, null, 2)));
     }
 }
